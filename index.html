@@ -1,0 +1,2888 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NMDC BAILADILA MINES | Multilingual V2V/V2I Haul Road Anti-Collision & Telemetry Command Center</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            mine: {
+              950: '#04070c',
+              900: '#080d16',
+              850: '#0e1624',
+              800: '#141f32',
+              750: '#1a2942',
+              700: '#243755',
+              600: '#385177',
+              accent: '#f97316', // Iron ore orange
+              iron: '#e2725b',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              crimson: '#ef4444',
+              cyan: '#06b6d4',
+              purple: '#a855f7'
+            }
+          },
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'Consolas', 'Menlo', 'monospace'],
+            sans: ['"Inter"', 'Segoe UI', 'system-ui', 'sans-serif'],
+          },
+          animation: {
+            'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'radar-sweep': 'radarSweep 2.5s linear infinite',
+            'beacon': 'beacon 1.8s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'fog-drift': 'fogDrift 20s linear infinite alternate',
+          },
+          keyframes: {
+            radarSweep: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' },
+            },
+            beacon: {
+              '0%': { transform: 'scale(1)', opacity: '0.9' },
+              '70%': { transform: 'scale(2.5)', opacity: '0' },
+              '100%': { transform: 'scale(2.5)', opacity: '0' },
+            },
+            fogDrift: {
+              '0%': { transform: 'translateX(-5%) translateY(-2%) scale(1)' },
+              '100%': { transform: 'translateX(5%) translateY(2%) scale(1.05)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS for Haul Road GIS Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Three.js for 3D Digital Twin Haul Road & Volumetric Fog -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Chart.js for Telemetry & Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #080d16; }
+    ::-webkit-scrollbar-thumb { background: #1a2942; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #243755; }
+
+    /* Tactical Scanlines & Grid */
+    .tactical-grid {
+      background-size: 30px 30px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    
+    .scanlines {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
+      background-size: 100% 3px;
+    }
+
+    /* Glowing alert animations */
+    .glow-critical {
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.65);
+      animation: alertPulse 0.9s infinite alternate;
+    }
+    @keyframes alertPulse {
+      0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+      100% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.9); }
+    }
+
+    /* Leaflet Dark Customizations */
+    .leaflet-container { background-color: #080d16 !important; font-family: inherit; }
+    .leaflet-bar a { background-color: #141f32 !important; color: #94a3b8 !important; border-color: #243755 !important; }
+    .leaflet-bar a:hover { background-color: #1a2942 !important; color: #f8fafc !important; }
+    .custom-dumper-marker { background: transparent; border: none; }
+  </style>
+</head>
+<body class="bg-mine-950 text-slate-200 font-sans min-h-screen flex flex-col antialiased selection:bg-orange-500 selection:text-white overflow-x-hidden">
+
+  <!-- TOP HEADER / NMDC INDUSTRIAL CONTROL BAR -->
+  <header class="bg-mine-900 border-b border-mine-750/80 sticky top-0 z-40 px-4 py-2.5 backdrop-blur-lg bg-opacity-95 flex flex-wrap items-center justify-between gap-3 shadow-2xl">
+    <div class="flex items-center space-x-3.5">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 via-orange-600 to-red-700 p-0.5 flex items-center justify-center shadow-lg shadow-orange-950/50">
+        <div class="w-full h-full bg-mine-900 rounded-[10px] flex items-center justify-center">
+          <i data-lucide="radio-tower" class="w-6 h-6 text-amber-400"></i>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <h1 class="font-black tracking-wider text-base uppercase text-white" data-i18n="appTitle">MineAlert</h1>
+          <span class="px-2 py-0.5 text-[10px] font-mono tracking-widest uppercase bg-orange-950/80 text-orange-400 border border-orange-700/60 rounded" data-i18n="sectorBadge">Kirandul & Bacheli</span>
+          <span class="px-2 py-0.5 text-[10px] font-mono uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-700/60 rounded flex items-center gap-1.5 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> <span data-i18n="loraStatus">LoRa 433MHz Mesh</span>
+          </span>
+          <span class="px-2 py-0.5 text-[10px] font-mono uppercase bg-purple-950/80 text-purple-300 border border-purple-700/60 rounded flex items-center gap-1">
+            <i data-lucide="languages" class="w-3 h-3 text-purple-400"></i> <span data-i18n="multiLangBadge">Multilingual Active</span>
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+          <span data-i18n="appSubtitle">V2V/V2I Haul Road Anti-Collision & Zero-Visibility Voice Dispatch</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Right Live Telemetry & Multilingual Voice Suite -->
+    <div class="flex items-center flex-wrap gap-2.5 bg-mine-850/90 border border-mine-750 px-3 py-1.5 rounded-xl text-xs shadow-inner">
+      
+      <!-- Multilingual Language Selector (Switches Entire Dashboard UI & Voice) -->
+      <div class="flex items-center gap-1.5 pr-2.5 border-r border-mine-700">
+        <i data-lucide="languages" class="w-4 h-4 text-purple-400"></i>
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase font-mono" data-i18n="selectLanguageLabel">Language / भाषा / భాష</div>
+          <select id="global-lang-select" onchange="changeVoiceLanguage(this.value)" class="bg-mine-800 text-purple-300 border border-purple-800/80 rounded px-2 py-0.5 text-xs font-mono font-bold outline-none cursor-pointer hover:bg-mine-750 transition">
+            <option value="hi-IN" selected>🇮🇳 हिन्दी (Hindi)</option>
+            <option value="te-IN">🇮🇳 తెలుగు (Telugu)</option>
+            <option value="kn-IN">🇮🇳 ಕನ್ನಡ (Kannada)</option>
+            <option value="or-IN">🇮🇳 ଓଡ଼ିଆ (Odia)</option>
+            <option value="cg-IN">🇮🇳 छत्तीसगढ़ी (Chhattisgarhi)</option>
+            <option value="bn-IN">🇮🇳 বাংলা (Bengali)</option>
+            <option value="en-IN">🌐 English (India)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Monsoon Fog Status -->
+      <div class="flex items-center gap-2 pr-2.5 border-r border-mine-700">
+        <i data-lucide="cloud-fog" class="w-4 h-4 text-amber-400 animate-pulse"></i>
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase font-mono" data-i18n="monsoonFogLabel">Monsoon Fog Vis.</div>
+          <div class="font-bold text-amber-400 font-mono flex items-center gap-1">
+            <span id="stat-visibility">3.4 m</span>
+            <span class="text-[9px] bg-rose-950 text-rose-300 px-1 py-0.2 rounded border border-rose-800" data-i18n="criticalBadge">CRITICAL</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radio Audio Alert & Voice Dispatch Controls -->
+      <div class="flex items-center gap-1.5">
+        <button id="btn-toggle-audio" class="px-2.5 py-1 bg-mine-750 hover:bg-mine-700 text-slate-200 rounded-lg text-xs flex items-center gap-1.5 transition border border-mine-650 shadow-sm" title="Toggle Acoustic Siren">
+          <i data-lucide="volume-2" id="icon-sound" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span id="text-sound" class="font-mono" data-i18n="sirenOn">Siren ON</span>
+        </button>
+        <button id="btn-toggle-voice" class="px-2.5 py-1 bg-mine-750 hover:bg-mine-700 text-slate-200 rounded-lg text-xs flex items-center gap-1.5 transition border border-mine-650 shadow-sm" title="Toggle Radio Voice Dispatch">
+          <i data-lucide="mic" id="icon-voice" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span id="text-voice" class="font-mono" data-i18n="voiceOn">Voice ON</span>
+        </button>
+        <button onclick="testCurrentVoiceAlert()" class="px-2 py-1 bg-purple-950/90 hover:bg-purple-900 text-purple-200 border border-purple-600/80 rounded-lg text-xs font-mono transition flex items-center gap-1" title="Test Audio Announcement in Selected Language">
+          <i data-lucide="play" class="w-3 h-3 text-purple-400"></i> <span data-i18n="testVoiceBtn">Test Voice</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS & SYSTEM SCENARIOS -->
+  <div class="bg-mine-900/90 border-b border-mine-750 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs z-30">
+    
+    <!-- Tab Navigation -->
+    <div class="flex items-center gap-1.5 bg-mine-950 p-1 rounded-xl border border-mine-800 flex-wrap">
+      <button onclick="switchTab('gis-view')" id="tab-btn-gis-view" class="tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition bg-orange-600 text-white shadow-lg shadow-orange-950/60">
+        <i data-lucide="map" class="w-4 h-4"></i> <span data-i18n="tab1Title">1. Haul Road GIS & Proximity Matrix</span>
+      </button>
+      <button onclick="switchTab('digital-twin')" id="tab-btn-digital-twin" class="tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-mine-800">
+        <i data-lucide="box" class="w-4 h-4"></i> <span data-i18n="tab2Title">2. 3D Digital Twin & Fog Volumetrics</span>
+      </button>
+      <button onclick="switchTab('driver-cockpit')" id="tab-btn-driver-cockpit" class="tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-mine-800">
+        <i data-lucide="gauge" class="w-4 h-4"></i> <span data-i18n="tab3Title">3. Driver Cabin Multilingual HUD (All Fleet)</span>
+      </button>
+      <button onclick="switchTab('rf-mesh-analyzer')" id="tab-btn-rf-mesh-analyzer" class="tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-mine-800">
+        <i data-lucide="activity" class="w-4 h-4"></i> <span data-i18n="tab4Title">4. LoRa 433MHz Spectrum & Mesh</span>
+      </button>
+      <button onclick="switchTab('analytics-view')" id="tab-btn-analytics-view" class="tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-mine-800">
+        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> <span data-i18n="tab5Title">5. Monsoon Haulage Analytics</span>
+      </button>
+    </div>
+
+    <!-- Quick Scenario Injector -->
+    <div class="flex items-center gap-2">
+      <span class="text-slate-400 font-mono text-[11px] uppercase flex items-center gap-1">
+        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i> <span data-i18n="scenarioLabel">Scenario:</span>
+      </span>
+      <button onclick="triggerScenario('normal')" class="px-2.5 py-1 rounded-lg bg-mine-800 hover:bg-mine-700 border border-slate-700 text-slate-300 transition text-[11px]" data-i18n="scenarioSafe">
+        🟢 Safe Convoy
+      </button>
+      <button onclick="triggerScenario('nearCollision')" class="px-2.5 py-1 rounded-lg bg-rose-950 hover:bg-rose-900 border border-rose-600 text-rose-200 font-bold transition text-[11px] flex items-center gap-1 shadow-sm" data-i18n="scenarioNearCollision">
+        🔴 Near-Collision (<25m)
+      </button>
+      <button onclick="triggerScenario('suddenBrake')" class="px-2.5 py-1 rounded-lg bg-amber-950 hover:bg-amber-900 border border-amber-600 text-amber-200 font-medium transition text-[11px] flex items-center gap-1" data-i18n="scenarioBrake">
+        ⚠️ High-G Slip / Brake
+      </button>
+      <button onclick="triggerScenario('denseFogShift')" class="px-2.5 py-1 rounded-lg bg-purple-950 hover:bg-purple-900 border border-purple-600 text-purple-200 transition text-[11px]" data-i18n="scenarioFogDrop">
+        🌫️ Zero-Vis (<2m)
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN TAB CONTENT CONTAINER -->
+  <main class="flex-1 p-3 lg:p-4 max-w-[1920px] mx-auto w-full flex flex-col gap-3.5">
+    
+    <!-- ========================================== -->
+    <!-- TAB 1: GIS HAUL ROAD & COLLISION MATRIX    -->
+    <!-- ========================================== -->
+    <div id="tab-content-gis-view" class="tab-pane grid grid-cols-1 xl:grid-cols-12 gap-3.5 flex-1">
+      
+      <!-- Left Column: Map & Haul Road Elevation Profile (8 Cols) -->
+      <div class="xl:col-span-8 flex flex-col gap-3.5">
+        
+        <!-- Interactive Map Container -->
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[500px] relative">
+          
+          <!-- Map Header Toolbar -->
+          <div class="bg-mine-900/95 px-4 py-2.5 border-b border-mine-750 flex flex-wrap items-center justify-between gap-2 z-10">
+            <div class="flex items-center gap-2">
+              <i data-lucide="map-pin" class="w-4 h-4 text-orange-400"></i>
+              <h2 class="font-bold text-sm text-white tracking-wide" data-i18n="mapTitle">Bailadila Deposit 5/14 Haul Road GIS</h2>
+              <span class="text-xs text-slate-400 font-mono" data-i18n="mapSubtitle">| Hilltop Ridge Switchback Haul Road (Kirandul-Bacheli)</span>
+            </div>
+            
+            <div class="flex items-center gap-3 text-xs font-mono">
+              <span class="flex items-center gap-1.5 text-emerald-400">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400/50"></span> <span data-i18n="legendSafe">Safe (>50m)</span>
+              </span>
+              <span class="flex items-center gap-1.5 text-amber-400">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-400/50"></span> <span data-i18n="legendCaution">Caution (30-50m)</span>
+              </span>
+              <span class="flex items-center gap-1.5 text-rose-400">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span> <span data-i18n="legendDanger">Danger (<30m)</span>
+              </span>
+              <button onclick="resetMapView()" class="p-1.5 bg-mine-800 hover:bg-mine-700 rounded-lg text-slate-300 transition" title="Center Map on Ridge">
+                <i data-lucide="crosshair" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Dynamic Atmospheric Fog Overlay on Map -->
+          <div id="fog-overlay" class="pointer-events-none absolute inset-0 z-[400] transition-opacity duration-1000 opacity-35 bg-gradient-to-b from-slate-200/10 via-slate-100/25 to-slate-200/10 backdrop-blur-[0.6px] animate-fog-drift"></div>
+
+          <!-- Leaflet Map Container -->
+          <div id="map" class="flex-1 w-full h-full z-0"></div>
+
+          <!-- Map Bottom HUD Bar -->
+          <div class="absolute bottom-3 left-3 z-[401] bg-mine-950/90 backdrop-blur-md border border-mine-700 px-3.5 py-1.5 rounded-xl text-[11px] font-mono text-slate-300 flex items-center gap-4 shadow-xl">
+            <div>GPS Datum: <span class="text-cyan-400">NMEA 0183 (NEO-6M)</span></div>
+            <div>Haul Loop: <span class="text-orange-400">4.82 km Continuous</span></div>
+            <div>Active Voice Language: <span class="text-purple-400 font-bold" id="stat-active-lang-badge">हिन्दी (Hindi)</span></div>
+            <div>Time-To-Collision (TTC): <span class="text-emerald-400 font-bold" id="stat-min-ttc">INF (Safe)</span></div>
+          </div>
+        </div>
+
+        <!-- Live Fleet Telemetry Table -->
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+          <div class="bg-mine-900/95 px-4 py-2.5 border-b border-mine-750 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="truck" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="font-bold text-sm text-white" data-i18n="fleetTableTitle">Active HEMM Fleet Telemetry Matrix</h3>
+              <span id="nodes-count-badge" class="text-xs bg-cyan-950 text-cyan-400 border border-cyan-800 px-2 py-0.2 rounded font-mono" data-i18n="nodesCountBadge">3 Nodes Connected</span>
+            </div>
+            <div class="text-xs text-orange-400 font-mono animate-pulse" data-i18n="tableClickHint">
+              👉 Click any dumper row below to inspect its live hardware telemetry & radar HUD
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-mine-900 text-slate-400 font-mono text-[11px] uppercase border-b border-mine-800">
+                <tr>
+                  <th class="py-2.5 px-3" data-i18n="colDumper">Dumper ID / Driver</th>
+                  <th class="py-2.5 px-3" data-i18n="colGps">GPS Coordinates</th>
+                  <th class="py-2.5 px-3" data-i18n="colSpeed">Speed</th>
+                  <th class="py-2.5 px-3" data-i18n="colNearest">Nearest Vehicle</th>
+                  <th class="py-2.5 px-3" data-i18n="colProximity">Proximity (V2V/Radar)</th>
+                  <th class="py-2.5 px-3" data-i18n="colImu">IMU Motion State</th>
+                  <th class="py-2.5 px-3" data-i18n="colLora">LoRa RSSI / SNR</th>
+                  <th class="py-2.5 px-3 text-center" data-i18n="colAlert">Safety Alert</th>
+                  <th class="py-2.5 px-3 text-right" data-i18n="colAction">Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="fleet-table-body" class="divide-y divide-mine-800 font-mono">
+                <!-- Dynamically populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Live Event Stream & Telemetry HUD (4 Cols) -->
+      <div class="xl:col-span-4 flex flex-col gap-3.5">
+        
+        <!-- Live LoRa Event Terminal Stream -->
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-xl flex flex-col h-[400px]">
+          <div class="bg-mine-900/95 px-3.5 py-2.5 border-b border-mine-750 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i>
+              <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200" data-i18n="eventStreamTitle">LoRa 433MHz Live Event Stream</h3>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="clearEventLog()" class="px-2 py-0.5 bg-mine-800 hover:bg-mine-700 rounded text-[10px] text-slate-300 transition" data-i18n="clearBtn">
+                Clear
+              </button>
+              <button onclick="exportLogsCSV()" class="px-2 py-0.5 bg-mine-800 hover:bg-mine-700 rounded text-[10px] text-cyan-400 transition" title="Export DGMS Safety Audit Log" data-i18n="csvExportBtn">
+                CSV Export
+              </button>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            </div>
+          </div>
+
+          <div id="event-log-container" class="flex-1 p-3 overflow-y-auto font-mono text-[11px] space-y-1.5 bg-mine-950/90 scanlines">
+            <!-- Terminal log entries generated here -->
+          </div>
+
+          <div class="bg-mine-900/90 px-3 py-1.5 border-t border-mine-750 text-[10px] text-slate-400 font-mono flex justify-between items-center">
+            <span>Gateway: USB-ESP32 (433.175 MHz)</span>
+            <span class="text-cyan-400">V2V Mesh Protocol v2.4</span>
+          </div>
+        </div>
+
+        <!-- Selected Vehicle Telemetry & Radar Gauge -->
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+          <div class="bg-mine-900/95 px-3.5 py-2.5 border-b border-mine-750 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-orange-400"></i>
+              <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200" id="inspector-title">Vehicle Telemetry HUD</h3>
+            </div>
+            <span id="inspector-status-badge" class="px-2.5 py-0.5 text-[10px] font-mono rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-bold">
+              STANDBY
+            </span>
+          </div>
+
+          <div class="p-3.5 flex-1 flex flex-col gap-3 text-xs overflow-y-auto">
+            
+            <!-- 24GHz Radar & 6-DOF IMU Sensors -->
+            <div class="grid grid-cols-2 gap-2.5">
+              
+              <!-- 24GHz Radar Sweep Visualizer -->
+              <div class="bg-mine-900 border border-mine-800 p-2.5 rounded-xl flex flex-col items-center justify-center relative overflow-hidden">
+                <div class="text-[10px] font-mono text-slate-400 uppercase w-full flex justify-between mb-1">
+                  <span data-i18n="radarTitle">24GHz Radar (CDM324)</span>
+                  <span class="text-emerald-400" data-i18n="radarRange">30m Range</span>
+                </div>
+                
+                <!-- Circular Sweep Radar Screen -->
+                <div class="w-24 h-24 rounded-full border border-emerald-500/40 relative bg-mine-950 flex items-center justify-center overflow-hidden my-1">
+                  <div class="w-16 h-16 rounded-full border border-emerald-500/20 absolute"></div>
+                  <div class="w-8 h-8 rounded-full border border-emerald-500/30 absolute"></div>
+                  <div class="w-full h-px bg-emerald-500/20 absolute"></div>
+                  <div class="h-full w-px bg-emerald-500/20 absolute"></div>
+                  <!-- Rotating Radar Scan Beam -->
+                  <div class="w-12 h-12 absolute top-0 right-0 origin-bottom-left bg-gradient-to-tr from-transparent via-emerald-400/20 to-emerald-400/60 rounded-tr-full animate-radar-sweep pointer-events-none"></div>
+                  <!-- Obstacle Blip -->
+                  <div id="radar-blip" class="w-2.5 h-2.5 rounded-full bg-rose-500 absolute -top-1 right-6 animate-pulse hidden"></div>
+                  <!-- Center Truck -->
+                  <div class="w-2 h-2 rounded-full bg-cyan-400 z-10"></div>
+                </div>
+                <div class="text-[10px] font-mono text-slate-300" id="radar-readout" data-i18n="radarClear">No Obstacle in 30m</div>
+              </div>
+
+              <!-- 6-DOF IMU (Road Grade, Camber, G-Force) -->
+              <div class="bg-mine-900 border border-mine-800 p-2.5 rounded-xl flex flex-col justify-between">
+                <div class="text-[10px] font-mono text-slate-400 uppercase flex justify-between">
+                  <span>IMU Gyro / Accel</span>
+                  <span class="text-cyan-400">MPU-6050</span>
+                </div>
+                
+                <div class="space-y-1.5 font-mono text-[10px] my-1">
+                  <div>
+                    <div class="flex justify-between text-slate-400">
+                      <span data-i18n="imuPitchLabel">Pitch (Grade):</span> <span class="text-white font-bold" id="imu-pitch">0.0°</span>
+                    </div>
+                    <div class="w-full bg-mine-950 rounded-full h-1 mt-0.5 overflow-hidden">
+                      <div class="bg-cyan-500 h-1 rounded-full" style="width: 50%"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-slate-400">
+                      <span data-i18n="imuRollLabel">Roll (Bank):</span> <span class="text-white font-bold" id="imu-roll">0.0°</span>
+                    </div>
+                    <div class="w-full bg-mine-950 rounded-full h-1 mt-0.5 overflow-hidden">
+                      <div class="bg-cyan-500 h-1 rounded-full" style="width: 50%"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-slate-400">
+                      <span data-i18n="imuGforceLabel">G-Force (Decel):</span> <span class="text-emerald-400 font-bold" id="imu-gforce">1.00 G</span>
+                    </div>
+                    <div class="w-full bg-mine-950 rounded-full h-1 mt-0.5 overflow-hidden">
+                      <div id="imu-gforce-bar" class="bg-emerald-500 h-1 rounded-full" style="width: 30%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-[9px] text-slate-400 font-mono border-t border-mine-800 pt-1">
+                  <span data-i18n="imuSlipLabel">Tire Slip Detection:</span> <span class="text-emerald-400 font-bold" id="imu-brake-alert">Normal</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hardware Telemetry Matrix -->
+            <div class="grid grid-cols-3 gap-2 text-center font-mono text-[10px]">
+              <div class="bg-mine-900 p-2 rounded-lg border border-mine-800">
+                <div class="text-slate-400">ESP32 Core</div>
+                <div class="text-emerald-400 font-bold">240MHz (OK)</div>
+              </div>
+              <div class="bg-mine-900 p-2 rounded-lg border border-mine-800">
+                <div class="text-slate-400">LoRa 433M</div>
+                <div class="text-cyan-400 font-bold">+20 dBm (SX1278)</div>
+              </div>
+              <div class="bg-mine-900 p-2 rounded-lg border border-mine-800">
+                <div class="text-slate-400">GPS Constellation</div>
+                <div class="text-emerald-400 font-bold">12 Sats (3D Fix)</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- TAB 2: 3D DIGITAL TWIN & TRUCK IDENTIFIERS / LABELS  -->
+    <!-- ==================================================== -->
+    <div id="tab-content-digital-twin" class="tab-pane hidden flex-1 flex flex-col gap-3.5">
+      <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl flex-1 flex flex-col h-[720px] relative">
+        
+        <!-- 3D Header Toolbar -->
+        <div class="bg-mine-900/95 px-4 py-2.5 border-b border-mine-750 flex flex-wrap items-center justify-between gap-2 z-10">
+          <div class="flex items-center gap-2">
+            <i data-lucide="box" class="w-4 h-4 text-cyan-400"></i>
+            <h2 class="font-bold text-sm text-white tracking-wide" data-i18n="threeTitle">NMDC Bailadila 3D Digital Twin - Real-Time Haulage & Fog Simulation</h2>
+            <span class="text-xs text-slate-400 font-mono">| Three.js WebGL Engine</span>
+          </div>
+
+          <div class="flex items-center gap-3 text-xs font-mono">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400" data-i18n="fogDensityLabel">Fog Density:</span>
+              <input type="range" min="0" max="100" value="85" id="slider-fog-density" oninput="update3DFogDensity(this.value)" class="w-24 accent-orange-500">
+              <span class="text-amber-400 font-bold" id="label-fog-density">85%</span>
+            </div>
+            <button onclick="toggle3DCamera()" class="px-2.5 py-1 bg-mine-800 hover:bg-mine-700 rounded-lg text-slate-200 border border-mine-700 transition" data-i18n="threeCameraBtn">
+              🎥 Switch Camera (Orbit / Follow Truck)
+            </button>
+            <button onclick="reset3DView()" class="px-2.5 py-1 bg-mine-800 hover:bg-mine-700 rounded-lg text-slate-200 border border-mine-700 transition" data-i18n="threeResetBtn">
+              🔄 Reset Camera
+            </button>
+          </div>
+        </div>
+
+        <!-- 3D WebGL Canvas Container -->
+        <div id="threejs-container" class="flex-1 w-full h-full relative cursor-grab active:cursor-grabbing"></div>
+
+        <!-- 3D Floating Trucks Number List & Active Status Overlay -->
+        <div class="absolute top-16 left-4 z-20 bg-mine-950/90 backdrop-blur-md border border-mine-750 p-3 rounded-xl font-mono text-xs text-slate-300 shadow-2xl max-w-xs">
+          <div class="text-orange-400 font-bold uppercase text-[11px] mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="truck" class="w-3.5 h-3.5"></i> <span data-i18n="activeFleetIn3d">Active Fleet in 3D Simulation:</span>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5" id="three-truck-legend">
+            <!-- Dynamic 3D truck buttons -->
+          </div>
+          <div class="text-[10px] text-slate-400 mt-2 border-t border-mine-800 pt-1">
+            👉 <span data-i18n="threeClickPrompt">Click any truck badge above to orbit directly to it!</span>
+          </div>
+        </div>
+
+        <!-- 3D HUD Overlays -->
+        <div class="absolute bottom-4 left-4 z-20 bg-mine-950/85 backdrop-blur-md border border-mine-750 p-3.5 rounded-xl font-mono text-xs text-slate-300 space-y-1.5 shadow-2xl">
+          <div class="text-orange-400 font-bold uppercase text-[11px] flex items-center gap-1.5">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Digital Twin Telemetry
+          </div>
+          <div>Active Haul Road: <span class="text-white">Deposit 5 Switchback Crest</span></div>
+          <div>Dynamic Radar Cones: <span class="text-emerald-400 font-bold">ACTIVE (24GHz CDM324)</span></div>
+          <div>V2V Collision Safety Radii: <span class="text-rose-400 font-bold">30m Critical / 50m Caution</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 3: DRIVER CABIN MULTILINGUAL HUD - ALL ACTIVE FLEET TRUCKS    -->
+    <!-- ================================================================= -->
+    <div id="tab-content-driver-cockpit" class="tab-pane hidden flex-1 flex flex-col gap-3.5">
+      
+      <!-- Top Fleet Dumper Selector Toolbar for Cockpits -->
+      <div class="bg-mine-850 border border-mine-750 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
+        <div class="flex items-center gap-2">
+          <i data-lucide="layout-grid" class="w-5 h-5 text-orange-400"></i>
+          <div>
+            <h3 class="font-bold text-sm text-white" data-i18n="cockpitFleetHeader">All Active Fleet In-Cabin HUD Displays</h3>
+            <p class="text-xs text-slate-400 font-mono" data-i18n="cockpitFleetSub">Live 1.3" OLED Hardware Displays, Forward FLIR Cameras & Driver Telemetry</p>
+          </div>
+        </div>
+
+        <!-- Quick Filter buttons for Dumper Cockpits -->
+        <div id="cockpit-filter-buttons" class="flex items-center gap-1.5 bg-mine-900 p-1 rounded-xl border border-mine-800 flex-wrap">
+          <span class="text-xs text-slate-400 px-2 font-mono" data-i18n="selectTruckView">Select Truck View:</span>
+          <button onclick="filterCockpitView('ALL')" id="btn-cockpit-filter-ALL" class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-orange-600 text-white transition">ALL</button>
+        </div>
+      </div>
+
+      <!-- Dynamic Grid of All Active Trucks In-Cabin HUDs -->
+      <div id="all-cockpits-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 flex-1">
+        <!-- Dynamically generated for all active trucks with individual OLEDs & FLIR Cameras -->
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: LORA 433MHz SPECTRUM & MESH         -->
+    <!-- ========================================== -->
+    <div id="tab-content-rf-mesh-analyzer" class="tab-pane hidden flex-1 grid grid-cols-1 xl:grid-cols-12 gap-3.5">
+      
+      <!-- Left Column: 433MHz Spectrum Waterfall & Packet Inspector (7 Cols) -->
+      <div class="xl:col-span-7 flex flex-col gap-3.5">
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-mine-750 pb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="activity" class="w-5 h-5 text-cyan-400"></i>
+              <h3 class="font-bold text-sm text-white" data-i18n="spectrumTitle">SX1278 LoRa 433MHz RF Spectrum Waterfall & Signal Quality</h3>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">Bandwidth: 125 kHz | Spreading Factor: SF7</span>
+          </div>
+
+          <!-- Chart.js Live Spectrum Graph -->
+          <div class="h-60 w-full bg-mine-900 p-2 rounded-xl border border-mine-800">
+            <canvas id="chart-rf-spectrum"></canvas>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2 font-mono text-xs">
+            <div class="bg-mine-900 p-2 rounded-lg border border-mine-800 text-center">
+              <div class="text-slate-400 text-[10px]">Center Frequency</div>
+              <div class="text-white font-bold">433.175 MHz</div>
+            </div>
+            <div class="bg-mine-900 p-2 rounded-lg border border-mine-800 text-center">
+              <div class="text-slate-400 text-[10px]">Average RSSI</div>
+              <div class="text-emerald-400 font-bold" id="stat-avg-rssi">-72 dBm</div>
+            </div>
+            <div class="bg-mine-900 p-2 rounded-lg border border-mine-800 text-center">
+              <div class="text-slate-400 text-[10px]">Average SNR</div>
+              <div class="text-cyan-400 font-bold" id="stat-avg-snr">+8.8 dB</div>
+            </div>
+            <div class="bg-mine-900 p-2 rounded-lg border border-mine-800 text-center">
+              <div class="text-slate-400 text-[10px]">Packet Error Rate</div>
+              <div class="text-emerald-400 font-bold">0.02%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Raw Packet Hex/JSON Payload Decoder -->
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl p-4 flex flex-col gap-2.5">
+          <div class="flex items-center justify-between border-b border-mine-750 pb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="binary" class="w-4 h-4 text-emerald-400"></i>
+              <h4 class="font-bold text-xs uppercase text-slate-200">Raw LoRa Payload Inspector & Packet Injector</h4>
+            </div>
+            <button onclick="injectCustomPacket()" class="px-2 py-1 bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-600 rounded text-xs text-cyan-300 font-mono transition">
+              Inject Test Packet
+            </button>
+          </div>
+
+          <div class="bg-mine-950 p-3 rounded-xl font-mono text-xs text-emerald-400 border border-mine-800 overflow-x-auto space-y-1">
+            <div class="text-slate-500">// Latest Decoded SX1278 Packet Frame (Hex & Telemetry Struct)</div>
+            <div>[HEX]: <span class="text-slate-300">4E 4D 44 43 01 02 44 31 30 31 12 A4 8F 81 3D 18 01 02 FF 2A</span></div>
+            <div>[PAYLOAD]: <span class="text-cyan-300" id="raw-payload-json">{"status":"STANDBY", "listening":"SX1278 433MHz"}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: V2V Mesh Topology & Routing Matrix (5 Cols) -->
+      <div class="xl:col-span-5 flex flex-col gap-3.5">
+        <div class="bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl p-4 flex-1 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-mine-750 pb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="share-2" class="w-4 h-4 text-purple-400"></i>
+              <h3 class="font-bold text-sm text-white" data-i18n="meshTopologyTitle">V2V Mesh Hop-by-Hop Topology</h3>
+            </div>
+            <span class="text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded">
+              Decentralized Ad-Hoc
+            </span>
+          </div>
+
+          <!-- Dynamic SVG Topology Graphic -->
+          <div class="flex-1 bg-mine-900 border border-mine-800 rounded-xl p-3 flex items-center justify-center relative overflow-hidden min-h-[360px]">
+            <svg id="v2v-mesh-svg" class="w-full h-full" viewBox="0 0 400 320">
+              <circle cx="200" cy="160" r="24" fill="#0c1a2e" stroke="#06b6d4" stroke-width="2.5" />
+              <text x="200" y="165" fill="#06b6d4" font-size="10" font-family="monospace" text-anchor="middle" font-weight="bold">GATEWAY</text>
+            </svg>
+          </div>
+
+          <div class="text-xs font-mono text-slate-400 bg-mine-900 p-2.5 rounded-lg border border-mine-800">
+            <span class="text-cyan-400 font-bold">Mesh Health:</span> Connected. Real-time SX1278 LoRa packets hop autonomously across haul trucks.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: MONSOON HAULAGE ANALYTICS           -->
+    <!-- ========================================== -->
+    <div id="tab-content-analytics-view" class="tab-pane hidden flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+      
+      <!-- KPI Metric Cards (Top) -->
+      <div class="lg:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div class="bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col justify-between">
+          <div class="text-slate-400 text-xs font-mono uppercase" data-i18n="kpiOreTitle">Ore Evacuated (Today)</div>
+          <div class="text-2xl font-black text-white font-mono mt-1">14,280 <span class="text-xs text-orange-400 font-normal">Tonnes</span></div>
+          <div class="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +18.4% vs Fog Stoppage Baseline
+          </div>
+        </div>
+
+        <div class="bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col justify-between">
+          <div class="text-slate-400 text-xs font-mono uppercase" data-i18n="kpiCycleTitle">Average Cycle Time</div>
+          <div class="text-2xl font-black text-cyan-400 font-mono mt-1">21.4 <span class="text-xs text-slate-400 font-normal">Mins / Trip</span></div>
+          <div class="text-[11px] text-cyan-400 font-mono mt-1">Target: &lt;24.0 Mins</div>
+        </div>
+
+        <div class="bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col justify-between">
+          <div class="text-slate-400 text-xs font-mono uppercase" data-i18n="kpiSavingsTitle">Monsoon Production Saved</div>
+          <div class="text-2xl font-black text-emerald-400 font-mono mt-1">₹ 4.2 <span class="text-xs text-slate-400 font-normal">Crores / Year</span></div>
+          <div class="text-[11px] text-slate-400 font-mono mt-1">Zero Fog Halt Days Achieved</div>
+        </div>
+
+        <div class="bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col justify-between">
+          <div class="text-slate-400 text-xs font-mono uppercase" data-i18n="kpiSafetyTitle">Safety Interventions</div>
+          <div class="text-2xl font-black text-orange-400 font-mono mt-1">12 <span class="text-xs text-slate-400 font-normal">Near-Miss Prevented</span></div>
+          <div class="text-[11px] text-emerald-400 font-mono mt-1">100% Zero-Accident Record</div>
+        </div>
+      </div>
+
+      <!-- Left Chart: Speed vs Distance Tracking -->
+      <div class="lg:col-span-6 bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col gap-3">
+        <div class="flex justify-between items-center border-b border-mine-750 pb-2">
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i> <span data-i18n="chartSpeedTitle">Fleet Speed vs Fog Corridor Elevation</span>
+          </h3>
+          <span class="text-xs text-slate-400 font-mono">Real-time Telemetry Loop</span>
+        </div>
+        <div class="h-64 w-full bg-mine-900 p-2 rounded-xl border border-mine-800">
+          <canvas id="chart-speed-elevation"></canvas>
+        </div>
+      </div>
+
+      <!-- Right Chart: Monsoon Downtime Reduction Comparison -->
+      <div class="lg:col-span-6 bg-mine-850 border border-mine-750 p-4 rounded-2xl shadow-xl flex flex-col gap-3">
+        <div class="flex justify-between items-center border-b border-mine-750 pb-2">
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-orange-400"></i> <span data-i18n="chartProdTitle">Haulage Productivity (Without V2V vs With V2V)</span>
+          </h3>
+          <span class="text-xs text-slate-400 font-mono">MTPA Evacuation Rate</span>
+        </div>
+        <div class="h-64 w-full bg-mine-900 p-2 rounded-xl border border-mine-800">
+          <canvas id="chart-productivity"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- INDUSTRIAL FOOTER -->
+  <footer class="bg-mine-900 border-t border-mine-750/80 px-4 py-2 text-xs font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2 z-30">
+    <div class="flex items-center gap-3">
+      <span class="text-white font-bold">NMDC BAILADILA IRON ORE MINES</span>
+      <span>•</span>
+      <span class="text-slate-300">ESP32 + LoRa 433MHz + NEO-6M GPS + 24GHz Radar + IMU Multilingual Anti-Collision Platform</span>
+      <span>•</span>
+      <span class="text-orange-400">Zero Internet / Cellular Tower Dependency</span>
+    </div>
+    <div class="text-slate-500">
+      Server Status: <span class="text-emerald-400">NORMAL RUNNING</span> (Tick: 60Hz)
+    </div>
+  </footer>
+
+  <!-- COMPREHENSIVE MULTILINGUAL DICTIONARY (VOICE + COMPLETE UI LOCALIZATION) -->
+  <script>
+    const UI_TRANSLATIONS = {
+      'hi-IN': {
+        name: 'हिन्दी (Hindi)',
+        appTitle: 'माइनगार्ड',
+        sectorBadge: 'किरंदुल एवं बचेली',
+        loraStatus: 'लोरा 433 मेगाहर्ट्ज़ मेश',
+        multiLangBadge: 'बहुभाषी सक्रिय',
+        appSubtitle: 'एआई-सहायित वी2वी/वी2आई खदान वाहन एंटी-कोलिजन एवं शून्य-दृश्यता वॉयस डिस्पैच',
+        selectLanguageLabel: 'भाषा / Dialect',
+        monsoonFogLabel: 'मानसून कोहरा दृश्यता',
+        criticalBadge: 'गंभीर',
+        sirenOn: 'सायरन चालू',
+        sirenMuted: 'सायरन बंद',
+        voiceOn: 'वॉयस चालू',
+        voiceOff: 'वॉयस बंद',
+        testVoiceBtn: 'आवाज टेस्ट करें',
+        tab1Title: '1. हॉल रोड जीआईएस एवं निकटता मैट्रिक्स',
+        tab2Title: '2. 3डी डिजिटल ट्विन एवं कोहरा सिमुलेशन',
+        tab3Title: '3. ड्राइवर केबिन बहुभाषी एचयूडी (सभी डंपर)',
+        tab4Title: '4. लोरा 433 मेगाहर्ट्ज़ स्पेक्ट्रम एवं मेश',
+        tab5Title: '5. मानसून उत्पादन विश्लेषण',
+        scenarioLabel: 'सिमुलेशन:',
+        scenarioSafe: '🟢 सुरक्षित काफिला',
+        scenarioNearCollision: '🔴 टक्कर खतरा (<25m)',
+        scenarioBrake: '⚠️ हाई-जी स्लिप / ब्रेक',
+        scenarioFogDrop: '🌫️ शून्य दृश्यता (<2m)',
+        mapTitle: 'बैलाडीला डिपॉजिट 5/14 हॉल रोड जीआईएस नक्शा',
+        mapSubtitle: '| पहाड़ी रिज हॉल रोड (किरंदुल-बचेली)',
+        legendSafe: 'सुरक्षित (>50m)',
+        legendCaution: 'सावधान (30-50m)',
+        legendDanger: 'खतरा (<30m)',
+        fleetTableTitle: 'सक्रिय एचईएमएम डंपर टेलीमेट्री मैट्रिक्स',
+        nodesCountBadge: 'वाहन जुड़े हैं',
+        tableClickHint: '👉 किसी भी डंपर की पंक्ति पर क्लिक करके उसकी लाइव हार्डवेयर टेलीमेट्री देखें',
+        colDumper: 'डंपर आईडी / चालक',
+        colGps: 'जीपीएस स्थिति',
+        colSpeed: 'गति',
+        colNearest: 'निकटतम डंपर',
+        colProximity: 'दूरी (वी2वी/रडार)',
+        colImu: 'आईएमयू मोशन अवस्था',
+        colLora: 'लोरा सिग्नल (RSSI/SNR)',
+        colAlert: 'सुरक्षा चेतावनी',
+        colAction: 'जांचें',
+        eventStreamTitle: 'लोरा 433 मेगाहर्ट्ज़ लाइव इवेंट स्ट्रीम',
+        clearBtn: 'साफ करें',
+        csvExportBtn: 'सीएसवी डाउनलोड',
+        radarTitle: '24गीगाहर्ट्ज़ रडार (CDM324)',
+        radarRange: '30 मीटर रेंज',
+        radarClear: '30 मीटर में कोई बाधा नहीं',
+        imuPitchLabel: 'सड़क ढलान (Pitch):',
+        imuRollLabel: 'साइड झुकाव (Roll):',
+        imuGforceLabel: 'जी-फोर्स (Decel):',
+        imuSlipLabel: 'टायर फिसलन जांच:',
+        threeTitle: 'एनएमडीसी बैलाडीला 3डी डिजिटल ट्विन - हॉल रोड एवं कोहरा सिमुलेशन',
+        fogDensityLabel: 'कोहरा घनत्व:',
+        threeCameraBtn: '🎥 कैमरा बदलें (ऑर्बिट / डंपर फॉलो)',
+        threeResetBtn: '🔄 रीसेट कैमरा',
+        activeFleetIn3d: '3डी सिमुलेशन में सक्रिय डंपर:',
+        threeClickPrompt: 'किसी भी डंपर बटन पर क्लिक करके सीधे वहां कैमरा ले जाएं!',
+        cockpitFleetHeader: 'सभी सक्रिय डंपरों का इन-केबिन एचयूडी डिस्प्ले',
+        cockpitFleetSub: 'ओलेड हार्डवेयर डिस्प्ले, थर्मल एफएलआईआर कैमरा एवं लाइव टेलीमेट्री',
+        selectTruckView: 'डंपर चुनें:',
+        spectrumTitle: 'SX1278 लोरा 433MHz आरएफ स्पेक्ट्रम वाटरफॉल एवं सिग्नल गुणवत्ता',
+        meshTopologyTitle: 'वी2वी मेश हॉप-बाय-हॉप टोपोलॉजी',
+        kpiOreTitle: 'आज निकाला गया लौह अयस्क',
+        kpiCycleTitle: 'औसत चक्र समय',
+        kpiSavingsTitle: 'मानसून उत्पादन बचत',
+        kpiSafetyTitle: 'दुर्घटनाएं रोकी गईं',
+        chartSpeedTitle: 'डंपर गति बनाम कोहरा कॉरिडोर ऊंचाई',
+        chartProdTitle: 'हॉलेज उत्पादकता (वी2वी के बिना बनाम वी2वी के साथ)',
+        safeOled: 'रास्ता साफ (SAFE)',
+        cautionOled: 'धीमा करें (SLOW)',
+        dangerOled: 'ब्रेक लगाएं (BRAKE!)',
+        voiceSafe: 'रास्ता साफ है, सुरक्षित दूरी बनाए रखें।',
+        voiceCaution: 'सावधान! आगे वाहन लगभग पचास मीटर पर है, गति धीमी करें।',
+        voiceDanger: 'खतरा! आगे डंपर बहुत पास है, तुरंत आपातकालीन ब्रेक लगाएं!',
+        voiceSlip: 'सावधान! सड़क पर फिसलन है, ब्रेक धीरे लगाएं।',
+        voiceDenseFog: 'कोहरा बहुत घना है। दृश्यता दो मीटर से कम है। गति पंद्रह रखें।',
+        voiceTest: 'एनएमडीसी खदान सुरक्षा प्रणाली सक्रिय है। आप सुरक्षित हैं।'
+      },
+      'te-IN': {
+        name: 'తెలుగు (Telugu)',
+        appTitle: 'ఎన్ఎండిసి బైలదిల మైన్స్',
+        sectorBadge: 'కిరందుల్ & బచేలి',
+        loraStatus: 'లోరా 433 MHz మెష్',
+        multiLangBadge: 'బహుభాషా మోడ్ ఆన్',
+        appSubtitle: 'ఏఐ ఆధారిత V2V/V2I గని వాహన యాంటీ-కొలిషన్ మరియు జీరో-విజిబిలిటీ వాయిస్ డిస్పాచ్',
+        selectLanguageLabel: 'భాష / Dialect',
+        monsoonFogLabel: 'వర్షాకాలం పొగమంచు విజిబిలిటీ',
+        criticalBadge: 'ప్రమాదకరమైనది',
+        sirenOn: 'సైరన్ ఆన్',
+        sirenMuted: 'సైరన్ మ్యూట్',
+        voiceOn: 'వాయిస్ ఆన్',
+        voiceOff: 'వాయిస్ ఆఫ్',
+        testVoiceBtn: 'వాయిస్ టెస్ట్',
+        tab1Title: '1. హాల్ రోడ్ జిఐఎస్ & ప్రాక్సిమిటీ మ్యాట్రిక్స్',
+        tab2Title: '2. 3D డిజిటల్ ట్విన్ & పొగమంచు సిమ్యులేషన్',
+        tab3Title: '3. డ్రైవర్ క్యాబిన్ HUD (అన్ని డంపర్లు)',
+        tab4Title: '4. లోరా 433MHz స్పెక్ట్రమ్ & మెష్',
+        tab5Title: '5. మైనింగ్ ప్రొడక్షన్ అనలిటిక్స్',
+        scenarioLabel: 'సిమ్యులేషన్:',
+        scenarioSafe: '🟢 సురక్షిత కాన్వాయ్',
+        scenarioNearCollision: '🔴 ఢీకొనే ప్రమాదం (<25m)',
+        scenarioBrake: '⚠️ రోడ్డు జారుడు / బ్రేక్',
+        scenarioFogDrop: '🌫️ జీరో విజిబిలిటీ (<2m)',
+        mapTitle: 'బైలదిల డిపాజిట్ 5/14 హాల్ రోడ్ GIS మ్యాప్',
+        mapSubtitle: '| కొండపై హాల్ రోడ్డు (కిరందుల్-బచేలి)',
+        legendSafe: 'సురಕ್ಷితం (>50m)',
+        legendCaution: 'హెచ్చరిక (30-50m)',
+        legendDanger: 'ప్రమాదం (<30m)',
+        fleetTableTitle: 'యాక్టివ్ HEMM డంపర్ టెలిమెట్రీ మ్యాట్రిక్స్',
+        nodesCountBadge: 'వాహనాలు కనెక్ట్ అయ్యాయి',
+        tableClickHint: '👉 ప్రత్యక్ష హార్డ్వేర్ టెలిమెట్రీని చూడటానికి ఏదైనా డంపర్ వరుసపై క్లిక్ చేయండి',
+        colDumper: 'డంపర్ ID / డ్రైవర్',
+        colGps: 'GPS స్థానం',
+        colSpeed: 'వేగం',
+        colNearest: 'సమీప డంపర్',
+        colProximity: 'దూరం (V2V/రాడార్)',
+        colImu: 'IMU చలన స్థితి',
+        colLora: 'లోరా సిగ్నల్ (RSSI/SNR)',
+        colAlert: 'భద్రతా హెచ్చరిక',
+        colAction: 'పరిశీలించండి',
+        eventStreamTitle: 'లోరా 433MHz లైవ్ ఈవెంట్ స్ట్రీమ్',
+        clearBtn: 'క్లియర్ చేయండి',
+        csvExportBtn: 'CSV ఎగుమతి',
+        radarTitle: '24GHz రాడార్ (CDM324)',
+        radarRange: '30 మీటర్ల పరిధి',
+        radarClear: '30 మీటర్లలో ఎటువంటి అడ్డంకులు లేవు',
+        imuPitchLabel: 'రోడ్డు వాలు (Pitch):',
+        imuRollLabel: 'వైపు వంపు (Roll):',
+        imuGforceLabel: 'జి-ఫోర్స్ (Decel):',
+        imuSlipLabel: 'టైర్ జారుడు తనిఖీ:',
+        threeTitle: 'NMDC బైలదిల 3D డిజిటల్ ట్విన్ - హాల్ రోడ్ & ఫాగ్ సిమ్యులేషన్',
+        fogDensityLabel: 'పొగమంచు సాంద్రత:',
+        threeCameraBtn: '🎥 కెమెరా మార్చండి (ఆర్బిట్ / ఫాలో)',
+        threeResetBtn: '🔄 రీసెట్ కెమెరా',
+        activeFleetIn3d: '3Dలో యాక్టివ్ డంపర్లు:',
+        threeClickPrompt: 'కెమెరాను నేరుగా అక్కడికి తీసుకెళ్లడానికి ఏదైనా డంపర్ బటన్పై క్లిక్ చేయండి!',
+        cockpitFleetHeader: 'అన్ని యాక్టివ్ డంపర్ల ఇన్-క్యాబిన్ HUD డిస్ప్లేలు',
+        cockpitFleetSub: 'OLED హార్డ్వేర్ డిస్ప్లే, థర్మల్ FLIR కెమెరా మరియు ప్రత్యక్ష టెలిమెట్రీ',
+        selectTruckView: 'డంపర్ ఎంచుకోండి:',
+        spectrumTitle: 'SX1278 లోరా 433MHz RF స్పెక్ట్రమ్ వాటర్ఫాల్',
+        meshTopologyTitle: 'V2V మెష్ హోప్-బై-హోప్ టోపోలాజీ',
+        kpiOreTitle: 'ఈరోజు రవాణా చేసిన ఇనుప ఖనిజం',
+        kpiCycleTitle: 'సగటు ట్రిప్ సమయం',
+        kpiSavingsTitle: 'వర్షాకాల ఉత్పత్తి ఆదా',
+        kpiSafetyTitle: 'నివారించిన ప్రమాదాలు',
+        chartSpeedTitle: 'డంపర్ వేగం మరియు ఎత్తు విశ్లేషణ',
+        chartProdTitle: 'ఉత్పాదకత పోలిక (V2V తో మరియు లేకుండా)',
+        safeOled: 'స్పష్టంగా ఉంది (SAFE)',
+        cautionOled: 'నెమ్మదిగా (SLOW)',
+        dangerOled: 'బ్రేక్ వేయండి (BRAKE!)',
+        voiceSafe: 'దారి స్పష్టంగా ఉంది, సురక్షిత వేగంతో వెళ్లండి.',
+        voiceCaution: 'హెచ్చరిక! ముందు ఉన్న వాహనం యాభై మీటర్ల దూరంలో ఉంది, వేగం తగ్గించండి.',
+        voiceDanger: 'ప్రమాదం! ముందు ఉన్న డంపర్ చాలా దగ్గరగా ఉంది, వెంటనే బ్రేక్ వేయండి!',
+        voiceSlip: 'రోడ్డు జారుడుగా ఉంది, నెమ్మదిగా డ్రైవ్ చేయండి.',
+        voiceDenseFog: 'పొగమంచు తీవ్రంగా ఉంది, వేగం పదిహేను కిలోమీటర్లకు పరిమితం చేయండి.',
+        voiceTest: 'ఎన్ఎండిసి గని భద్రతా వాయిస్ సిస్టమ్ సిద్ధంగా ఉంది.'
+      },
+      'kn-IN': {
+        name: 'ಕನ್ನಡ (Kannada)',
+        appTitle: 'ಎನ್ಎಂಡಿಸಿ ಬೈಲದಿಲ ಕಾಂಪ್ಲೆಕ್ಸ್',
+        sectorBadge: 'ಕಿರಂದುಲ್ ಮತ್ತು ಬಚೇಲಿ',
+        loraStatus: 'ಲೋರಾ 433 MHz ಮೆಶ್',
+        multiLangBadge: 'ಬಹುಭಾಷಾ ಸಕ್ರಿಯ',
+        appSubtitle: 'ಎಐ ಆಧಾರಿತ V2V/V2I ಗಣಿ ವಾಹನ ಡಿಕ್ಕಿ ತಡೆ ಮತ್ತು ಶೂನ್ಯ ಗೋಚರತೆಯ ಧ್ವನಿ ಪ್ರಸಾರ',
+        selectLanguageLabel: 'ಭಾಷೆ / Dialect',
+        monsoonFogLabel: 'ಮಳೆಗಾಲದ ಮಂಜು ಗೋಚರತೆ',
+        criticalBadge: 'ಅಪಾಯಕಾರಿ',
+        sirenOn: 'ಸೈರನ್ ಆನ್',
+        sirenMuted: 'ಸೈರನ್ ಮ್ಯೂಟ್',
+        voiceOn: 'ಧ್ವನಿ ಆನ್',
+        voiceOff: 'ಧ್ವನಿ ಆಫ್',
+        testVoiceBtn: 'ಧ್ವನಿ ಪರೀಕ್ಷಿಸಿ',
+        tab1Title: '1. ಹಾಲ್ ರಸ್ತೆ ಜಿಐಎಸ್ ಮತ್ತು ಸಾಮೀಪ್ಯ ಮ್ಯಾಟ್ರಿಕ್ಸ್',
+        tab2Title: '2. 3D ಡಿಜಿಟಲ್ ಟ್ವಿನ್ ಮತ್ತು ಮಂಜು ಸಿಮ್ಯುಲೇಶನ್',
+        tab3Title: '3. ಚಾಲಕ ಕ್ಯಾಬಿನ್ HUD (ಎಲ್ಲಾ ಡಂಪರ್ಗಳು)',
+        tab4Title: '4. ಲೋರಾ 433MHz ಸ್ಪೆಕ್ಟ್ರಮ್ ಮತ್ತು ಮೆಶ್',
+        tab5Title: '5. ಮಳೆಗಾಲದ ಉತ್ಪಾದನಾ ವಿಶ್ಲೇಷಣೆ',
+        scenarioLabel: 'ಸಿಮ್ಯುಲೇಶನ್:',
+        scenarioSafe: '🟢 ಸುರಕ್ಷಿತ ಕಾನ್ವಾಯ್',
+        scenarioNearCollision: '🔴 ಡಿಕ್ಕಿ ಅಪಾಯ (<25m)',
+        scenarioBrake: '⚠️ ಜಾರುವ ರಸ್ತೆ / ಬ್ರೇಕ್',
+        scenarioFogDrop: '🌫️ ಶೂನ್ಯ ಗೋಚರತೆ (<2m)',
+        mapTitle: 'ಬೈಲದಿಲ ಡಿಪಾಸಿಟ್ 5/14 ಹಾಲ್ ರಸ್ತೆ GIS ನಕ್ಷೆ',
+        mapSubtitle: '| ಗುಡ್ಡದ ಮೇಲಿನ ಹಾಲ್ ರಸ್ತೆ (ಕಿರಂದುಲ್-ಬಚೇಲಿ)',
+        legendSafe: 'ಸುರಕ್ಷಿತ (>50m)',
+        legendCaution: 'ಎಚ್ಚರಿಕೆ (30-50m)',
+        legendDanger: 'ಅಪಾಯ (<30m)',
+        fleetTableTitle: 'ಸಕ್ರಿಯ HEMM ಡಂಪರ್ ಟೆಲಿಮೆಟ್ರಿ ಮ್ಯಾಟ್ರಿಕ್ಸ್',
+        nodesCountBadge: 'ವಾಹನಗಳು ಸಂಪರ್ಕಗೊಂಡಿವೆ',
+        tableClickHint: '👉 ಲೈವ್ ಹಾರ್ಡ್ವೇರ್ ಟೆಲಿಮೆಟ್ರಿ ವೀಕ್ಷಿಸಲು ಯಾವುದೇ ಡಂಪರ್ ಸಾಲಿನ ಮೇಲೆ ಕ್ಲಿಕ್ ಮಾಡಿ',
+        colDumper: 'ಡಂಪರ್ ID / ಚಾಲಕ',
+        colGps: 'GPS ಸ್ಥಾನ',
+        colSpeed: 'ವೇಗ',
+        colNearest: 'ಹತ್ತಿರದ ಡಂಪರ್',
+        colProximity: 'ದೂರ (V2V/ರಾಡಾರ್)',
+        colImu: 'IMU ಚಲನೆಯ ಸ್ಥಿತಿ',
+        colLora: 'ಲೋರಾ ಸಿಗ್ನಲ್ (RSSI/SNR)',
+        colAlert: 'ಸುರಕ್ಷತಾ ಎಚ್ಚರಿಕೆ',
+        colAction: 'ಪರಿಶೀಲಿಸಿ',
+        eventStreamTitle: 'ಲೋರಾ 433MHz ಲೈವ್ ಈವೆಂಟ್ ಸ್ಟ್ರೀಮ್',
+        clearBtn: 'ತೆರವುಗೊಳಿಸಿ',
+        csvExportBtn: 'CSV ರಫ್ತು',
+        radarTitle: '24GHz ರಾಡಾರ್ (CDM324)',
+        radarRange: '30 ಮೀಟರ್ ಶ್ರೇಣಿ',
+        radarClear: '30 ಮೀಟರ್ನಲ್ಲಿ ಯಾವುದೇ ಅಡೆತಡೆಗಳಿಲ್ಲ',
+        imuPitchLabel: 'ರಸ್ತೆ ಇಳಿಜಾರು (Pitch):',
+        imuRollLabel: 'ಬದಿಯ ಓರೆ (Roll):',
+        imuGforceLabel: 'ಜಿ-ಫೋರ್ಸ್ (Decel):',
+        imuSlipLabel: 'ಟೈರ್ ಜಾರುವಿಕೆ ತಪಾಸಣೆ:',
+        threeTitle: 'NMDC ಬೈಲದಿಲ 3D ಡಿಜಿಟಲ್ ಟ್ವಿನ್ - ಹಾಲ್ ರಸ್ತೆ ಮತ್ತು ಮಂಜು ಸಿಮ್ಯುಲೇಶನ್',
+        fogDensityLabel: 'ಮಂಜಿನ ಸಾಂದ್ರತೆ:',
+        threeCameraBtn: '🎥 ಕ್ಯಾಮೆರಾ ಬದಲಿಸಿ (ಆರ್ಬಿಟ್ / ಫಾಲೋ)',
+        threeResetBtn: '🔄 ಮರುಹೊಂದಿಸಿ',
+        activeFleetIn3d: '3D ಸಿಮ್ಯುಲೇಶನ್ನಲ್ಲಿ ಸಕ್ರಿಯ ಡಂಪರ್ಗಳು:',
+        threeClickPrompt: 'ಕ್ಯಾಮೆರಾವನ್ನು ನೇರವಾಗಿ ಅಲ್ಲಿಗೆ ಕೊಂಡೊಯ್ಯಲು ಯಾವುದೇ ಡಂಪರ್ ಬಟನ್ ಕ್ಲಿಕ್ ಮಾಡಿ!',
+        cockpitFleetHeader: 'ಎಲ್ಲಾ ಸಕ್ರಿಯ ಡಂಪರ್ಗಳ ಇನ್-ಕ್ಯಾಬಿನ್ HUD ಡಿಸ್ಪ್ಲೇಗಳು',
+        cockpitFleetSub: 'OLED ಹಾರ್ಡ್ವೇರ್ ಡಿಸ್ಪ್ಲೇ, ಥರ್ಮಲ್ FLIR ಕ್ಯಾಮೆರಾ ಮತ್ತು ಲೈವ್ ಟೆಲಿಮೆಟ್ರಿ',
+        selectTruckView: 'ಡಂಪರ್ ಆಯ್ಕೆಮಾಡಿ:',
+        spectrumTitle: 'SX1278 ಲೋರಾ 433MHz RF ಸ್ಪೆಕ್ಟ್ರಮ್ ವಾಟರ್ಫಾಲ್',
+        meshTopologyTitle: 'V2V ಮೆಶ್ ಟೋಪೋಲಾಜಿ',
+        kpiOreTitle: 'ಇಂದು ಸಾಗಿಸಲಾದ ಕಬ್ಬಿಣದ ಅದಿರು',
+        kpiCycleTitle: 'ಸರಾಸರಿ ಟ್ರಿಪ್ ಸಮಯ',
+        kpiSavingsTitle: 'ಮಳೆಗಾಲದ ಉತ್ಪಾದನೆ ಉಳಿತಾಯ',
+        kpiSafetyTitle: 'ತಪ್ಪಿಸಲಾದ ಅಪಘಾತಗಳು',
+        chartSpeedTitle: 'ಡಂಪರ್ ವೇಗ ಮತ್ತು ಎತ್ತರದ ವಿಶ್ಲೇಷಣೆ',
+        chartProdTitle: 'ಉತ್ಪಾದಕತೆ ಹೋಲಿಕೆ (V2V ನೊಂದಿಗೆ ಮತ್ತು ಇಲ್ಲದೆ)',
+        safeOled: 'ಸ್ಪಷ್ಟವಾಗಿದೆ (SAFE)',
+        cautionOled: 'ನಿಧಾನಿಸಿ (SLOW)',
+        dangerOled: 'ಬ್ರೇಕ್ ಹಾಕಿ (BRAKE!)',
+        voiceSafe: 'ರಸ್ತೆ ಸ್ಪಷ್ಟವಾಗಿದೆ, ಸುರಕ್ಷಿತ ಅಂತರ ಕಾಪಾಡಿ.',
+        voiceCaution: 'ಎಚ್ಚರಿಕೆ! ಮುಂದಿನ ವಾಹನ ಐವತ್ತು ಮೀಟರ್ ದೂರದಲ್ಲಿದೆ, ವೇಗ ಕಡಿಮೆ ಮಾಡಿ.',
+        voiceDanger: 'ಅಪಾಯ! ಮುಂದಿನ ಡಂಪರ್ ತುಂಬಾ ಹತ್ತಿರದಲ್ಲಿದೆ, ತಕ್ಷಣ ಬ್ರೇಕ್ ಹಾಕಿ!',
+        voiceSlip: 'ರಸ್ತೆಯಲ್ಲಿ ಜಾರುವಿಕೆ ಇದೆ, ಎಚ್ಚರಿಕೆಯಿಂದ ಚಲಾಯಿಸಿ.',
+        voiceDenseFog: 'ದಟ್ಟ ಮಂಜು ಇದೆ. ವೇಗವನ್ನು ಹದಿನೈದು ಕಿಲೋಮೀಟರ್ಗೆ ಮಿತಿಗೊಳಿಸಿ.',
+        voiceTest: 'ಎನ್ಎಂಡಿಸಿ ಗಣಿ ಸುರಕ್ಷತಾ ಧ್ವನಿ ವ್ಯವಸ್ಥೆ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತಿದೆ.'
+      },
+      'or-IN': {
+        name: 'ଓଡ଼ିଆ (Odia)',
+        appTitle: 'ଏନଏମଡିସି ବୈଲାଡିଲା ପରିସର',
+        sectorBadge: 'କିରନ୍ଦୁଲ ଏବଂ ବଚେଲି',
+        loraStatus: 'ଲୋରା 433 MHz ମେଶ',
+        multiLangBadge: 'ବହୁଭାଷୀ ସକ୍ରିୟ',
+        appSubtitle: 'ଏଆଇ ଆଧାରିତ V2V/V2I ଖଣି ଯାନ ଧକ୍କା ନିରୋଧ ଏବଂ ଶୂନ୍ୟ-ଦୃଶ୍ୟମାନତା ଭଏସ୍ ଡିସପାଚ୍',
+        selectLanguageLabel: 'ଭାଷା / Dialect',
+        monsoonFogLabel: 'ମୌସୁମୀ କୁହୁଡ଼ି ଦୃଶ୍ୟମାନତା',
+        criticalBadge: 'ବିପଜ୍ଜନକ',
+        sirenOn: 'ସାଇରନ ଅନ୍',
+        sirenMuted: 'ସାଇରନ ମ୍ୟୁଟ୍',
+        voiceOn: 'ଭଏସ୍ ଅନ୍',
+        voiceOff: 'ଭଏସ୍ ଅଫ୍',
+        testVoiceBtn: 'ଭଏସ୍ ଟେଷ୍ଟ',
+        tab1Title: '1. ହଲ୍ ରୋଡ୍ GIS ଏବଂ ନିକଟତର ମ୍ୟାଟ୍ରିକ୍ସ',
+        tab2Title: '2. 3D ଡିଜିଟାଲ୍ ଟ୍ୱିନ୍ ଏବଂ କୁହୁଡ଼ି ସିମୁଲେସନ୍',
+        tab3Title: '3. ଡ୍ରାଇଭର କ୍ୟାବିନ୍ HUD (ସମସ୍ତ ଡମ୍ପର)',
+        tab4Title: '4. ଲୋରା 433MHz ସ୍ପେକ୍ଟ୍ରମ୍ ଏବଂ ମେଶ',
+        tab5Title: '5. ମୌସୁମୀ ଉତ୍ପାଦନ ବିଶ୍ଳେଷଣ',
+        scenarioLabel: 'ସିମୁଲେସନ୍:',
+        scenarioSafe: '🟢 ସୁରକ୍ଷିତ କନଭୟ',
+        scenarioNearCollision: '🔴 ଧକ୍କା ବିପଦ (<25m)',
+        scenarioBrake: '⚠️ ରାସ୍ତା ଖସଡ଼ା / ବ୍ରେକ୍',
+        scenarioFogDrop: '🌫️ ଶୂନ୍ୟ ଦୃଶ୍ୟମାନତା (<2m)',
+        mapTitle: 'ବୈଲାଡିଲା ଡିପୋଜିଟ୍ 5/14 ହଲ୍ ରୋଡ୍ GIS ମାନଚିତ୍ର',
+        mapSubtitle: '| ପାହାଡ଼ିଆ ହଲ୍ ରୋଡ୍ (କିରନ୍ଦୁଲ-ବଚେଲି)',
+        legendSafe: 'ସୁରକ୍ଷିତ (>50m)',
+        legendCaution: 'ସତର୍କ (30-50m)',
+        legendDanger: 'ବିପଦ (<30m)',
+        fleetTableTitle: 'ସକ୍ରିୟ HEMM ଡମ୍ପର ଟେଲିମେଟ୍ରି ମ୍ୟାଟ୍ରିକ୍ସ',
+        nodesCountBadge: 'ଯାନ ସଂଯୁକ୍ତ',
+        tableClickHint: '👉 ପ୍ରତ୍ୟକ୍ଷ ହାର୍ଡୱେର୍ ଟେଲିମେଟ୍ରି ଦେଖିବା ପାଇଁ ଯେକୌଣସି ଡମ୍ପର ଧାଡ଼ିରେ କ୍ଲିକ୍ କରନ୍ତୁ',
+        colDumper: 'ଡମ୍ପର ID / ଚାଳକ',
+        colGps: 'GPS ସ୍ଥିତି',
+        colSpeed: 'ଗତି',
+        colNearest: 'ନିକଟତମ ଡମ୍ପର',
+        colProximity: 'ଦୂରତା (V2V/ରାଡାର)',
+        colImu: 'IMU ଗତି ସ୍ଥିତି',
+        colLora: 'ଲୋରା ସିଗନାଲ (RSSI/SNR)',
+        colAlert: 'ସୁରକ୍ଷା ଚେତାବନୀ',
+        colAction: 'ଯାଞ୍ଚ କରନ୍ତୁ',
+        eventStreamTitle: 'ଲୋରା 433MHz ଲାଇଭ୍ ଇଭେଣ୍ଟ ଷ୍ଟ୍ରିମ୍',
+        clearBtn: 'ସଫା କରନ୍ତୁ',
+        csvExportBtn: 'CSV ଡାଉନଲୋଡ',
+        radarTitle: '24GHz ରାଡାର (CDM324)',
+        radarRange: '30 ମିଟର ପରିସର',
+        radarClear: '30 ମିଟରରେ କୌଣସି ବାଧା ନାହିଁ',
+        imuPitchLabel: 'ରାସ୍ତା ଢାଲୁ (Pitch):',
+        imuRollLabel: 'ପାର୍ଶ୍ୱ ଢଳିବା (Roll):',
+        imuGforceLabel: 'ଜି-ଫୋର୍ସ (Decel):',
+        imuSlipLabel: 'ଟାୟାର ଖସଡ଼ା ଯାଞ୍ଚ:',
+        threeTitle: 'NMDC ବୈଲାଡିଲା 3D ଡିଜିଟାଲ୍ ଟ୍ୱିନ୍ - ହଲ୍ ରୋଡ୍ ଏବଂ କୁହୁଡ଼ି ସିମୁଲେସନ୍',
+        fogDensityLabel: 'କୁହୁଡ଼ି ସାନ୍ଦ୍ରତା:',
+        threeCameraBtn: '🎥 କ୍ୟାମେରା ବଦଳାନ୍ତୁ (ଅରବିଟ୍ / ଫଲୋ)',
+        threeResetBtn: '🔄 ରିସେଟ୍ କରନ୍ତୁ',
+        activeFleetIn3d: '3D ରେ ସକ୍ରିୟ ଡମ୍ପର:',
+        threeClickPrompt: 'କ୍ୟାମେରାକୁ ସିଧାସଳଖ ସେଠାକୁ ନେବା ପାଇଁ ଯେକୌଣସି ଡମ୍ପର ବଟନ୍ କ୍ଲିକ୍ କରନ୍ତୁ!',
+        cockpitFleetHeader: 'ସମସ୍ତ ସକ୍ରିୟ ଡମ୍ପରର ଇନ୍-କ୍ୟାବିନ୍ HUD ଡିସପ୍ଲେ',
+        cockpitFleetSub: 'OLED ହାର୍ଡୱେର ଡିସପ୍ଲେ, ଥର୍ମାଲ FLIR କ୍ୟାମେରା ଏବଂ ଲାଇଭ୍ ଟେଲିମେଟ୍ରି',
+        selectTruckView: 'ଡମ୍ପର ବାଛନ୍ତୁ:',
+        spectrumTitle: 'SX1278 ଲୋରା 433MHz RF ସ୍ପେକ୍ଟ୍ରମ୍ ୱାଟରଫଲ୍',
+        meshTopologyTitle: 'V2V ମେଶ ହପ୍-ବାଇ-ହପ୍ ଟପୋଲୋଜି',
+        kpiOreTitle: 'ଆଜି ପରିବହନ ହୋଇଥିବା ଲୁହା ପଥର',
+        kpiCycleTitle: 'ହାରାହାରି ଟ୍ରିପ୍ ସମୟ',
+        kpiSavingsTitle: 'ମୌସୁମୀ ଉତ୍ପାଦନ ସଞ୍ଚୟ',
+        kpiSafetyTitle: 'ନିବାରିତ ଦୁର୍ଘଟଣା',
+        chartSpeedTitle: 'ଡମ୍ପର ଗତି ଏବଂ ଉଚ୍ଚତା ବିଶ୍ଳେଷଣ',
+        chartProdTitle: 'ଉତ୍ପାଦକତା ତୁଳନା (V2V ସହିତ ଏବଂ ବିନା)',
+        safeOled: 'ରାସ୍ତା ସଫା (SAFE)',
+        cautionOled: 'ଧୀରେ (SLOW)',
+        dangerOled: 'ବ୍ରେକ ଲଗାନ୍ତୁ (BRAKE!)',
+        voiceSafe: 'ରାସ୍ତା ସଫା ଅଛି, ସୁରକ୍ଷିତ ଭାବେ ଗାଡ଼ି ଚଳାନ୍ତୁ।',
+        voiceCaution: 'ସାବଧାନ! ଆଗରେ ଗାଡ଼ି ଅଛି, ଗତି ଧୀମା କରନ୍ତୁ।',
+        voiceDanger: 'ବିପଦ! ଆଗରେ ଡମ୍ପର ବହୁତ ପାଖରେ ଅଛି, ତୁରନ୍ତ ବ୍ରେକ ଲଗାନ୍ତୁ!',
+        voiceSlip: 'ରାସ୍ତା ଖସଡ଼ା ଅଛି, ଧୀରେ ଚଳାନ୍ତୁ।',
+        voiceDenseFog: 'ପାଣିପାଗ ଖରାପ ଅଛି, କୁହୁଡ଼ି ଅଧିକ ଅଛି। ସାବଧାନ ରୁହନ୍ତୁ।',
+        voiceTest: 'ଏନଏମଡିସି ଖଣି ସୁରକ୍ଷା ବ୍ୟବସ୍ଥା ସକ୍ରିୟ ଅଛି।'
+      },
+      'cg-IN': {
+        name: 'छत्तीसगढ़ी (Chhattisgarhi)',
+        appTitle: 'एनएमडीसी बैलाडीला खदान',
+        sectorBadge: 'किरंदुल अउ बचेली',
+        loraStatus: 'लोरा 433 मेगाहर्ट्ज़ मेश',
+        multiLangBadge: 'छत्तीसगढ़ी चालू हे',
+        appSubtitle: 'एआई-सहायक V2V/V2I खदान गाड़ी टक्कर रोके बर अउ कम देखाई म आवाज संदेश प्रणाली',
+        selectLanguageLabel: 'भाषा / Dialect',
+        monsoonFogLabel: 'बरसात म कोहरा देखाई',
+        criticalBadge: 'भारी खतरा',
+        sirenOn: 'सायरन चालू',
+        sirenMuted: 'सायरन बंद',
+        voiceOn: 'आवाज चालू',
+        voiceOff: 'आवाज बंद',
+        testVoiceBtn: 'आवाज सुनव',
+        tab1Title: '1. खदान रद्दा GIS अउ दूरी मैट्रिक्स',
+        tab2Title: '2. 3D डिजिटल नक्शा अउ कोहरा सिमुलेशन',
+        tab3Title: '3. ड्राइवर केबिन HUD (सबो डंपर)',
+        tab4Title: '4. लोरा 433 मेगाहर्ट्ज़ मेश नेटवर्क',
+        tab5Title: '5. खदान उत्पादन रिपोर्ट',
+        scenarioLabel: 'सिमुलेशन:',
+        scenarioSafe: '🟢 सुरक्षित गाड़ी',
+        scenarioNearCollision: '🔴 टक्कर खतरा (<25m)',
+        scenarioBrake: '⚠️ गाड़ी स्लिप / ब्रेक',
+        scenarioFogDrop: '🌫️ कुछु नई दिखत (<2m)',
+        mapTitle: 'बैलाडीला डिपॉजिट 5/14 खदान रद्दा नक्शा',
+        mapSubtitle: '| पहाड़ी चोटी रद्दा (किरंदुल-बचेली)',
+        legendSafe: 'सुरक्षित (>50m)',
+        legendCaution: 'सावधान (30-50m)',
+        legendDanger: 'खतरा (<30m)',
+        fleetTableTitle: 'चलत डंपर गाड़ी टेलीमेट्री मैट्रिक्स',
+        nodesCountBadge: 'डंपर जुड़े हे',
+        tableClickHint: '👉 कोनो भी डंपर के लाइन म क्लिक करके ओकर लाइव रडार अउ सेंसर डेटा देखव',
+        colDumper: 'डंपर आईडी / ड्राइवर',
+        colGps: 'GPS जगह',
+        colSpeed: 'स्पीड',
+        colNearest: 'लगभग के डंपर',
+        colProximity: 'दूरी (V2V/रडार)',
+        colImu: 'गाड़ी हालत (IMU)',
+        colLora: 'लोरा सिग्नल (RSSI/SNR)',
+        colAlert: 'सुरक्षा अलर्ट',
+        colAction: 'देखव',
+        eventStreamTitle: 'लोरा 433MHz लाइव संदेश लॉग',
+        clearBtn: 'साफ करव',
+        csvExportBtn: 'CSV डाउनलोड',
+        radarTitle: '24GHz रडार (CDM324)',
+        radarRange: '30 मीटर तक',
+        radarClear: '30 मीटर म कोनो रुकावट नई हे',
+        imuPitchLabel: 'रद्दा ढलान (Pitch):',
+        imuRollLabel: 'गाड़ी झुकाव (Roll):',
+        imuGforceLabel: 'झटका (Decel):',
+        imuSlipLabel: 'पहिया फिसलन जांच:',
+        threeTitle: 'NMDC बैलाडीला 3D डिजिटल खदान - रद्दा अउ कोहरा सिमुलेशन',
+        fogDensityLabel: 'कोहरा घनत्व:',
+        threeCameraBtn: '🎥 कैमरा बदलव (घूमव / डंपर पीछे)',
+        threeResetBtn: '🔄 सीधा करव',
+        activeFleetIn3d: '3D म चलत डंपर:',
+        threeClickPrompt: 'कोनो भी डंपर बटन म क्लिक करके ओकरा तीर कैमरा ले जावव!',
+        cockpitFleetHeader: 'सबो डंपर के ड्राइवर केबिन HUD स्क्रीन',
+        cockpitFleetSub: 'OLED स्क्रीन, थर्मल कैमरा अउ लाइव सेंसर डेटा',
+        selectTruckView: 'डंपर चुनव:',
+        spectrumTitle: 'SX1278 लोरा 433MHz सिग्नल स्पेक्ट्रम',
+        meshTopologyTitle: 'V2V मेश नेटवर्क नक्शा',
+        kpiOreTitle: 'आज निकाले गे लोहा अयस्क',
+        kpiCycleTitle: 'एक फेरा के समय',
+        kpiSavingsTitle: 'बरसात म बचाए उत्पादन',
+        kpiSafetyTitle: 'रोके गे दुर्घटना',
+        chartSpeedTitle: 'डंपर स्पीड अउ पहाड़ी ऊंचाई',
+        chartProdTitle: 'उत्पादन तुलना (V2V के साथ अउ बिना)',
+        safeOled: 'साफ हे (SAFE)',
+        cautionOled: 'धीमा करा (SLOW)',
+        dangerOled: 'ब्रेक लगावव (BRAKE!)',
+        voiceSafe: 'डगर साफ हे, सुरच्छित दूरी बना के गाड़ी चलावव।',
+        voiceCaution: 'सावधान! आगू गाड़ी 50 मीटर म हे, गाड़ी धीमा कर लव।',
+        voiceDanger: 'खतरा! आगू डंपर नजकिक हे, तुरते इमरजेंसी ब्रेक लगावव!',
+        voiceSlip: 'सड़क म फिसलन हे, संभल के चलावव।',
+        voiceDenseFog: 'कोहरा बहुत जादा हे, गाड़ी 15 के स्पीड म चलावव।',
+        voiceTest: 'एनएमडीसी खदान सुरक्षा प्रणाली चालू हे।'
+      },
+      'bn-IN': {
+        name: 'বাংলা (Bengali)',
+        appTitle: 'এনএমডিসি বায়লাডিলা কমপ্লেক্স',
+        sectorBadge: 'কিরন্দুল এবং বাচেলি',
+        loraStatus: 'লোরা 433 MHz মেশ',
+        multiLangBadge: 'বহুভাষিক সক্রিয়',
+        appSubtitle: 'এআই চালিত V2V/V2I খনি যান সংঘর্ষ প্রতিরোধ ও শূন্য-দৃশ্যমানতা ভয়েস ডিসপ্যাচ',
+        selectLanguageLabel: 'ভাষা / Dialect',
+        monsoonFogLabel: 'বর্ষা কুয়াশা দৃশ্যমানতা',
+        criticalBadge: 'সংকটজনক',
+        sirenOn: 'সাইরেন চালু',
+        sirenMuted: 'সাইরেন বন্ধ',
+        voiceOn: 'ভয়েস চালু',
+        voiceOff: 'ভয়েস বন্ধ',
+        testVoiceBtn: 'ভয়েস পরীক্ষা',
+        tab1Title: '1. হল রোড GIS ও প্রক্সিমিটি ম্যাট্রিক্স',
+        tab2Title: '2. 3D ডিজিটাল টুইন ও কুয়াশা সিমুলেশন',
+        tab3Title: '3. ড্রাইভার কেবিন HUD (সকল ডাম্পার)',
+        tab4Title: '4. লোরা 433MHz স্পেকট্রাম ও মেশ',
+        tab5Title: '5. বর্ষাকালীন উৎপাদন বিশ্লেষণ',
+        scenarioLabel: 'সিমুলেশন:',
+        scenarioSafe: '🟢 নিরাপদ কনভয়',
+        scenarioNearCollision: '🔴 সংঘর্ষ ঝুঁকি (<25m)',
+        scenarioBrake: '⚠️ রাস্তা পিচ্ছিল / ব্রেক',
+        scenarioFogDrop: '🌫️ শূন্য দৃশ্যমানতা (<2m)',
+        mapTitle: 'বায়লাডিলা ডিপোজিট 5/14 হল রোড GIS মানচিত্র',
+        mapSubtitle: '| পাহাড়ের চূড়ার হল রোড (কিরন্দুল-বাচেলি)',
+        legendSafe: 'নিরাপদ (>50m)',
+        legendCaution: 'সতর্কতা (30-50m)',
+        legendDanger: 'বিপদ (<30m)',
+        fleetTableTitle: 'সক্রিয় HEMM ডাম্পার টেলিমেট্রি ম্যাট্রিক্স',
+        nodesCountBadge: 'টি যান সংযুক্ত',
+        tableClickHint: '👉 লাইভ হার্ডওয়্যার টেলিমেট্রি দেখতে যেকোনো ডাম্পার সারিতে ক্লিক করুন',
+        colDumper: 'ডাম্পার ID / চালক',
+        colGps: 'GPS অবস্থান',
+        colSpeed: 'গতিবেগ',
+        colNearest: 'নিকটতম ডাম্পার',
+        colProximity: 'দূরত্ব (V2V/রাডার)',
+        colImu: 'IMU গতি স্থিতি',
+        colLora: 'লোরা সংকেত (RSSI/SNR)',
+        colAlert: 'সুরক্ষা সতর্কতা',
+        colAction: 'পরিদর্শন',
+        eventStreamTitle: 'লোরা 433MHz লাইভ ইভেন্ট স্ট্রিম',
+        clearBtn: 'মুছুন',
+        csvExportBtn: 'CSV ডাউনলোড',
+        radarTitle: '24GHz রাডার (CDM324)',
+        radarRange: '30 মিটার পরিসীমা',
+        radarClear: '30 মিটারে কোনো বাধা নেই',
+        imuPitchLabel: 'রাস্তার ঢাল (Pitch):',
+        imuRollLabel: 'পার্শ্ব কাত (Roll):',
+        imuGforceLabel: 'জি-ফোর্স (Decel):',
+        imuSlipLabel: 'চাকা পিছলানোর পরীক্ষা:',
+        threeTitle: 'NMDC বায়লাডিলা 3D ডিজিটাল টুইন - হল রোড ও কুয়াশা সিমুলেশন',
+        fogDensityLabel: 'কুয়াশার ঘনত্ব:',
+        threeCameraBtn: '🎥 ক্যামেরা পরিবর্তন (অরবিট / ফলো)',
+        threeResetBtn: '🔄 রিসেট ক্যামেরা',
+        activeFleetIn3d: '3D তে সক্রিয় ডাম্পার:',
+        threeClickPrompt: 'ক্যামেরাটি সরাসরি সেখানে নিয়ে যেতে যেকোনো ডাম্পার বোতামে ক্লিক করুন!',
+        cockpitFleetHeader: 'সকল সক্রিয় ডাম্পারের ইন-কেবিন HUD ডিসপ্লে',
+        cockpitFleetSub: 'OLED হার্ডওয়্যার ডিসপ্লে, থার্মাল FLIR ক্যামেরা এবং লাইভ টেলিমেট্রি',
+        selectTruckView: 'ডাম্পার নির্বাচন করুন:',
+        spectrumTitle: 'SX1278 লোরা 433MHz RF স্পেকট্রাম জলপ্রপাত',
+        meshTopologyTitle: 'V2V মেশ টপোলজি',
+        kpiOreTitle: 'আজ উত্তোলিত লৌহ আকরিক',
+        kpiCycleTitle: 'গড় ট্রিপ সময়',
+        kpiSavingsTitle: 'বর্ষাকালীন উৎপাদন সাশ্রয়',
+        kpiSafetyTitle: 'প্রতিরোধকৃত দুর্ঘটনা',
+        chartSpeedTitle: 'ডাম্পার গতি ও উচ্চতা বিশ্লেষণ',
+        chartProdTitle: 'উৎপাদনশীলতা তুলনা (V2V সহ এবং ছাড়া)',
+        safeOled: 'পরিষ্কার (SAFE)',
+        cautionOled: 'গতি কমান (SLOW)',
+        dangerOled: 'ব্রেক লাগান (BRAKE!)',
+        voiceSafe: 'রাস্তা পরিষ্কার আছে, নিরাপদ দূরত্ব বজায় রাখুন।',
+        voiceCaution: 'সতর্ক থাকুন! সামনের গাড়ি পঞ্চাশ মিটারে আছে, গতি কমান।',
+        voiceDanger: 'বিপদ! সামনের ডাম্পার খুব কাছে, এখনই এমার্জেন্সি ব্রেক লাগান!',
+        voiceSlip: 'রাস্তা পিচ্ছিল আছে, সাবধানে চালান।',
+        voiceDenseFog: 'ঘন কুয়াশা রয়েছে, গতি পনেরো কিলোমিটারে সীমাবদ্ধ রাখুন।',
+        voiceTest: 'এনএমডিসি খনি নিরাপত্তা ব্যবস্থা সক্রিয় রয়েছে।'
+      },
+      'en-IN': {
+        name: 'English (India)',
+        appTitle: 'MineAlert',
+        sectorBadge: 'Kirandul & Bacheli',
+        loraStatus: 'LoRa 433MHz Mesh',
+        multiLangBadge: 'Multilingual Active',
+        appSubtitle: ' V2V/V2I Haul Road Anti-Collision & Zero-Visibility Voice Dispatch',
+        selectLanguageLabel: 'Language / Dialect',
+        monsoonFogLabel: 'Monsoon Fog Vis.',
+        criticalBadge: 'CRITICAL',
+        sirenOn: 'Siren ON',
+        sirenMuted: 'Siren MUTED',
+        voiceOn: 'Voice ON',
+        voiceOff: 'Voice OFF',
+        testVoiceBtn: 'Test Voice',
+        tab1Title: '1. Haul Road GIS & Proximity Matrix',
+        tab2Title: '2. 3D Digital Twin & Fog Volumetrics',
+        tab3Title: '3. Driver Cabin Multilingual HUD (All Fleet)',
+        tab4Title: '4. LoRa 433MHz Spectrum & Mesh',
+        tab5Title: '5. Monsoon Haulage Analytics',
+        scenarioLabel: 'Scenario:',
+        scenarioSafe: '🟢 Safe Convoy',
+        scenarioNearCollision: '🔴 Near-Collision (<25m)',
+        scenarioBrake: '⚠️ High-G Slip / Brake',
+        scenarioFogDrop: '🌫️ Zero-Vis (<2m)',
+        mapTitle: 'Bailadila Deposit 5/14 Haul Road GIS',
+        mapSubtitle: '| Hilltop Ridge Switchback Haul Road (Kirandul-Bacheli)',
+        legendSafe: 'Safe (>50m)',
+        legendCaution: 'Caution (30-50m)',
+        legendDanger: 'Danger (<30m)',
+        fleetTableTitle: 'Active HEMM Fleet Telemetry Matrix',
+        nodesCountBadge: 'Nodes Connected',
+        tableClickHint: '👉 Click any dumper row below to inspect its live hardware telemetry & radar HUD',
+        colDumper: 'Dumper ID / Driver',
+        colGps: 'GPS Coordinates',
+        colSpeed: 'Speed',
+        colNearest: 'Nearest Vehicle',
+        colProximity: 'Proximity (V2V/Radar)',
+        colImu: 'IMU Motion State',
+        colLora: 'LoRa RSSI / SNR',
+        colAlert: 'Safety Alert',
+        colAction: 'Inspect',
+        eventStreamTitle: 'LoRa 433MHz Live Event Stream',
+        clearBtn: 'Clear',
+        csvExportBtn: 'CSV Export',
+        radarTitle: '24GHz Radar (CDM324)',
+        radarRange: '30m Range',
+        radarClear: 'No Obstacle in 30m',
+        imuPitchLabel: 'Pitch (Grade):',
+        imuRollLabel: 'Roll (Bank):',
+        imuGforceLabel: 'G-Force (Decel):',
+        imuSlipLabel: 'Tire Slip Detection:',
+        threeTitle: 'NMDC Bailadila 3D Digital Twin - Real-Time Haulage & Fog Simulation',
+        fogDensityLabel: 'Fog Density:',
+        threeCameraBtn: '🎥 Switch Camera (Orbit / Follow Truck)',
+        threeResetBtn: '🔄 Reset Camera',
+        activeFleetIn3d: 'Active Fleet in 3D Simulation:',
+        threeClickPrompt: 'Click any truck badge above to orbit directly to it!',
+        cockpitFleetHeader: 'All Active Fleet In-Cabin HUD Displays',
+        cockpitFleetSub: 'Live 1.3" OLED Hardware Displays, Forward FLIR Cameras & Driver Telemetry',
+        selectTruckView: 'Select Truck View:',
+        spectrumTitle: 'SX1278 LoRa 433MHz RF Spectrum Waterfall & Signal Quality',
+        meshTopologyTitle: 'V2V Mesh Hop-by-Hop Topology',
+        kpiOreTitle: 'Ore Evacuated (Today)',
+        kpiCycleTitle: 'Average Cycle Time',
+        kpiSavingsTitle: 'Monsoon Production Saved',
+        kpiSafetyTitle: 'Safety Interventions',
+        chartSpeedTitle: 'Fleet Speed vs Fog Corridor Elevation',
+        chartProdTitle: 'Haulage Productivity (Without V2V vs With V2V)',
+        safeOled: 'CLEAR PATH',
+        cautionOled: 'CAUTION: SLOW',
+        dangerOled: 'DANGER: BRAKE!',
+        voiceSafe: 'Path is clear. Maintain safe haul road convoy spacing.',
+        voiceCaution: 'Caution! Preceding vehicle within fifty meters. Reduce speed.',
+        voiceDanger: 'Danger! Collision hazard detected ahead. Apply emergency brakes now!',
+        voiceSlip: 'Warning! Haul road wheel slip detected. Apply modulated braking.',
+        voiceDenseFog: 'Dense fog visibility under two meters. Speed limit enforced to 15 km/h.',
+        voiceTest: 'NMDC Mine Safety Voice Dispatch is operational.'
+      }
+    };
+
+    let selectedGlobalLang = 'hi-IN';
+    let audioCtx = null;
+    let soundEnabled = true;
+    let voiceEnabled = true;
+    let lastAlarmTime = 0;
+    let lastSpeechTime = 0;
+    let activeCockpitFilter = 'ALL';
+
+    // Update entire dashboard DOM text according to selected language
+    function updateAllDashboardLanguage(langCode) {
+      const dict = UI_TRANSLATIONS[langCode] || UI_TRANSLATIONS['hi-IN'];
+      
+      // Update all elements with data-i18n attribute
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+          el.textContent = dict[key];
+        }
+      });
+
+      // Update active badge in map HUD
+      const badge = document.getElementById('stat-active-lang-badge');
+      if (badge) badge.textContent = dict.name;
+
+      const nodesBadge = document.getElementById('nodes-count-badge');
+      if (nodesBadge) nodesBadge.textContent = `${fleet.length} ${dict.nodesCountBadge}`;
+
+      // Re-render UI components
+      renderFleetTable();
+      updateInspector();
+      renderAllCockpits();
+      render3DTruckLegend();
+    }
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playRadioChirp() {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.08);
+        
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch (e) {}
+    }
+
+    function playBuzzerTone(frequency, duration, type = 'square') {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+        
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.warn("Audio blocked until interaction", e);
+      }
+    }
+
+    function speakAlertKey(key, langCode = selectedGlobalLang) {
+      if (!voiceEnabled || !('speechSynthesis' in window)) return;
+      const now = Date.now();
+      if (now - lastSpeechTime < 4000) return;
+      lastSpeechTime = now;
+
+      playRadioChirp();
+
+      const langPack = UI_TRANSLATIONS[langCode] || UI_TRANSLATIONS['hi-IN'];
+      const textToSpeak = langPack[key] || langPack['voiceDanger'] || 'Warning';
+
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = langCode === 'cg-IN' ? 'hi-IN' : langCode;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const targetVoice = voices.find(v => v.lang.includes(utterance.lang.split('-')[0]));
+        if (targetVoice) utterance.voice = targetVoice;
+
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn("Speech synthesis error", e);
+      }
+    }
+
+    function changeVoiceLanguage(langCode) {
+      selectedGlobalLang = langCode;
+      updateAllDashboardLanguage(langCode);
+      logEvent('LANGUAGE', `Dashboard UI & Voice language changed to: ${UI_TRANSLATIONS[langCode].name}`);
+      speakAlertKey('voiceTest', langCode);
+    }
+
+    function testCurrentVoiceAlert() {
+      speakAlertKey('voiceTest', selectedGlobalLang);
+    }
+
+    document.getElementById('btn-toggle-audio').addEventListener('click', () => {
+      initAudio();
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('icon-sound');
+      const text = document.getElementById('text-sound');
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+      if (soundEnabled) {
+        text.textContent = dict.sirenOn;
+        icon.className = 'w-3.5 h-3.5 text-emerald-400';
+        playBuzzerTone(880, 0.15, 'sine');
+      } else {
+        text.textContent = dict.sirenMuted;
+        icon.className = 'w-3.5 h-3.5 text-slate-500';
+      }
+    });
+
+    document.getElementById('btn-toggle-voice').addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      const icon = document.getElementById('icon-voice');
+      const text = document.getElementById('text-voice');
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+      if (voiceEnabled) {
+        text.textContent = dict.voiceOn;
+        icon.className = 'w-3.5 h-3.5 text-cyan-400';
+        speakAlertKey('voiceTest', selectedGlobalLang);
+      } else {
+        text.textContent = dict.voiceOff;
+        icon.className = 'w-3.5 h-3.5 text-slate-500';
+      }
+    });
+  </script>
+
+  <!-- MAIN TELEMETRY, REALISTIC ACCELERATION PHYSICS, 3D DIGITAL TWIN, & MAP -->
+  <script>
+    const MINE_CENTER = [18.6850, 81.2420];
+    
+    // Detailed Haul Road GPS Path with segment gradient slopes (Steep Ascent, Ridge Crest, Switchbacks, Fast Descent)
+    const HAUL_ROAD_PATH = [
+      [18.6890, 81.2360], // Bench 5 Pit (Loading Point) -> Grade 0%
+      [18.6875, 81.2395], // Ridge Curve A -> Grade +6% (Climbing)
+      [18.6860, 81.2430], // Hilltop Haul Road #3 (Dense Fog Zone) -> Grade +2%
+      [18.6845, 81.2460], // Fog Corridor Switchback Sharp Bend -> Grade -4% (Descent Corner)
+      [18.6820, 81.2475], // Ridge Descent Straightaway -> Grade -8% (Fast downhill)
+      [18.6790, 81.2450], // Primary Crusher Hopper (Unloading) -> Grade 0% (Decelerate to dump)
+      [18.6815, 81.2410], // Return Empty Haul Road -> Grade -2% (Fast empty run)
+      [18.6855, 81.2375], // Ascent to Pit -> Grade +7% (Climbing back)
+      [18.6890, 81.2360]  // Pit loop
+    ];
+
+    // Segment base target speeds to make speed dynamically change naturally through turns, hill ascents, descents & flats
+    const SEGMENT_PHYSICS = [
+      { baseSpeed: 18, pitch: 0.5, desc: 'Loading Point (Slow Maneuver)' },
+      { baseSpeed: 22, pitch: 5.2, desc: 'Steep Hilltop Ascent (Heavy Pull)' },
+      { baseSpeed: 25, pitch: 1.8, desc: 'Ridge Haul Road (Fog Corridor)' },
+      { baseSpeed: 16, pitch: -3.5, desc: 'Sharp Switchback Bend (Braking)' },
+      { baseSpeed: 34, pitch: -7.8, desc: 'Descent Straight (Accelerating)' },
+      { baseSpeed: 12, pitch: 0.2, desc: 'Crusher Approach (Dumping Ore)' },
+      { baseSpeed: 36, pitch: -1.5, desc: 'Empty Return Straight (High Speed)' },
+      { baseSpeed: 20, pitch: 6.4, desc: 'Ascent to Excavator Bench (Climbing)' }
+    ];
+
+    // THREE ACTIVE FLEET TRUCKS DEMO DATA
+    let fleet = [
+      {
+        id: 'D-101',
+        name: 'Dumper Alpha (CAT 777D)',
+        driverName: 'Rajesh Kumar (Hindi)',
+        language: 'hi-IN',
+        capacity: '100 Tonne',
+        routeIndex: 1.2,
+        speed: 24.2,
+        targetSpeed: 26,
+        accelRate: 0.0,
+        lat: 18.6870,
+        lng: 81.2405,
+        imu: { pitch: 3.2, roll: -1.0, gforce: 1.01, status: 'Cruising' },
+        radarDistance: 72,
+        rssi: -68,
+        snr: 9.2,
+        nearestTruck: 'D-102',
+        distanceToNearest: 72,
+        ttc: 99,
+        status: 'SAFE',
+        packetCount: 382
+      },
+      {
+        id: 'D-102',
+        name: 'Dumper Bravo (Komatsu HD785)',
+        driverName: 'Venkatesh Rao (Telugu)',
+        language: 'te-IN',
+        capacity: '100 Tonne',
+        routeIndex: 2.8,
+        speed: 22.5,
+        targetSpeed: 24,
+        accelRate: 0.0,
+        lat: 18.6835,
+        lng: 81.2470,
+        imu: { pitch: -2.8, roll: 0.5, gforce: 1.02, status: 'Descending' },
+        radarDistance: 64,
+        rssi: -74,
+        snr: 8.4,
+        nearestTruck: 'D-103',
+        distanceToNearest: 64,
+        ttc: 99,
+        status: 'SAFE',
+        packetCount: 412
+      },
+      {
+        id: 'D-103',
+        name: 'Dumper Charlie (BEML BH100)',
+        driverName: 'Ramesh Sahu (Chhattisgarhi)',
+        language: 'cg-IN',
+        capacity: '85 Tonne',
+        routeIndex: 5.1,
+        speed: 18.0,
+        targetSpeed: 20,
+        accelRate: 0.0,
+        lat: 18.6800,
+        lng: 81.2435,
+        imu: { pitch: 0.8, roll: -0.4, gforce: 1.00, status: 'Approaching Crusher' },
+        radarDistance: 88,
+        rssi: -71,
+        snr: 9.0,
+        nearestTruck: 'D-101',
+        distanceToNearest: 88,
+        ttc: 99,
+        status: 'SAFE',
+        packetCount: 350
+      }
+    ];
+
+    let selectedTruckId = 'D-101';
+    let simulationSpeed = 1;
+    let totalPacketsReceived = 0;
+    let eventLogHistory = [];
+
+    // --- TAB SWITCHING SYSTEM ---
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.className = 'tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition text-slate-400 hover:text-white hover:bg-mine-800';
+      });
+
+      const targetPane = document.getElementById(`tab-content-${tabId}`);
+      const targetBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (targetPane) targetPane.classList.remove('hidden');
+      if (targetBtn) {
+        targetBtn.className = 'tab-btn px-3 py-1.5 rounded-lg font-mono font-medium flex items-center gap-2 transition bg-orange-600 text-white shadow-lg shadow-orange-950/60';
+      }
+
+      if (tabId === 'digital-twin' && threeRenderer) {
+        onThreeWindowResize();
+      }
+      if (tabId === 'gis-view' && map) {
+        setTimeout(() => map.invalidateSize(), 200);
+      }
+      if (tabId === 'driver-cockpit') {
+        renderAllCockpits();
+      }
+    }
+
+    // --- LEAFLET MAP ENGINE ---
+    let map = null;
+    let mapMarkers = {};
+    let haulRoadPolyline = null;
+    let proximityWarningLines = [];
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true, attributionControl: false }).setView(MINE_CENTER, 15);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        subdomains: 'abcd',
+      }).addTo(map);
+
+      haulRoadPolyline = L.polyline(HAUL_ROAD_PATH, {
+        color: '#f97316',
+        weight: 5,
+        opacity: 0.85,
+        dashArray: '10, 8',
+        lineCap: 'round'
+      }).addTo(map);
+
+      const fogZone = L.polygon([
+        [18.6880, 81.2390],
+        [18.6840, 81.2480],
+        [18.6810, 81.2470],
+        [18.6850, 81.2380]
+      ], {
+        color: '#9333ea',
+        fillColor: '#9333ea',
+        fillOpacity: 0.18,
+        weight: 1,
+        dashArray: '4, 4'
+      }).addTo(map);
+
+      fogZone.bindTooltip("⚠️ Hilltop Fog Corridor (Vis: <5m)", { permanent: true, className: "bg-purple-950/90 text-purple-200 border border-purple-600 font-mono text-[10px] rounded px-1.5 py-0.5" });
+
+      const towerIcon = L.divIcon({
+        className: 'custom-tower',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <div class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400 animate-ping absolute"></div>
+            <div class="w-6 h-6 rounded-full bg-mine-900 border-2 border-cyan-400 flex items-center justify-center text-cyan-400 text-xs shadow-lg">📡</div>
+          </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      L.marker([18.6840, 81.2415], { icon: towerIcon }).addTo(map)
+        .bindPopup("<strong class='font-mono text-cyan-400'>NMDC Central LoRa Gateway</strong><br><span class='text-xs text-slate-300'>433MHz SX1278 Mast</span>");
+
+      fleet.forEach(truck => {
+        const marker = createTruckMarker(truck);
+        marker.addTo(map);
+        marker.on('click', () => selectTruck(truck.id));
+        mapMarkers[truck.id] = marker;
+      });
+    }
+
+    function createTruckMarker(truck) {
+      let colorClass = 'bg-emerald-500 border-emerald-300 text-emerald-950';
+      let beaconEffect = '';
+
+      if (truck.status === 'CAUTION') {
+        colorClass = 'bg-amber-500 border-amber-300 text-amber-950';
+      } else if (truck.status === 'DANGER') {
+        colorClass = 'bg-rose-600 border-rose-200 text-white animate-bounce';
+        beaconEffect = `<div class="absolute -inset-2 rounded-full border-2 border-rose-500 animate-beacon"></div>`;
+      }
+
+      const icon = L.divIcon({
+        className: 'custom-dumper-marker',
+        html: `
+          <div class="relative flex flex-col items-center cursor-pointer">
+            ${beaconEffect}
+            <div class="w-7 h-7 rounded-lg ${colorClass} border-2 flex items-center justify-center font-mono font-black text-[10px] shadow-lg transition-all duration-300">
+              ${truck.id.replace('D-', '')}
+            </div>
+            <div class="bg-mine-950/90 text-white font-mono text-[9px] px-1 rounded border border-slate-700 mt-0.5 whitespace-nowrap">
+              ${Math.round(truck.speed)} km/h
+            </div>
+          </div>`,
+        iconSize: [36, 40],
+        iconAnchor: [18, 20]
+      });
+
+      return L.marker([truck.lat, truck.lng], { icon });
+    }
+
+    function updateMapMarkers() {
+      // Remove stale markers
+      const currentIds = fleet.map(t => t.id);
+      Object.keys(mapMarkers).forEach(id => {
+        if (!currentIds.includes(id)) {
+          map.removeLayer(mapMarkers[id]);
+          delete mapMarkers[id];
+        }
+      });
+
+      fleet.forEach(truck => {
+        if (!mapMarkers[truck.id]) {
+          const marker = createTruckMarker(truck);
+          marker.addTo(map);
+          marker.on('click', () => selectTruck(truck.id));
+          mapMarkers[truck.id] = marker;
+        } else {
+          const marker = mapMarkers[truck.id];
+          marker.setLatLng([truck.lat, truck.lng]);
+          
+          let colorClass = 'bg-emerald-500 border-emerald-300 text-emerald-950';
+          let beacon = '';
+          if (truck.status === 'CAUTION') {
+            colorClass = 'bg-amber-500 border-amber-300 text-amber-950';
+          } else if (truck.status === 'DANGER') {
+            colorClass = 'bg-rose-600 border-white text-white animate-bounce';
+            beacon = `<div class="absolute -inset-2 rounded-full border-2 border-rose-500 animate-beacon"></div>`;
+          }
+
+          marker.setIcon(L.divIcon({
+            className: 'custom-dumper-marker',
+            html: `
+              <div class="relative flex flex-col items-center cursor-pointer">
+                ${beacon}
+                <div class="w-7 h-7 rounded-lg ${colorClass} border-2 flex items-center justify-center font-mono font-black text-[10px] shadow-lg">
+                  ${truck.id.replace('D-', '')}
+                </div>
+                <div class="bg-mine-950/90 text-white font-mono text-[9px] px-1 rounded border border-slate-700 mt-0.5 whitespace-nowrap">
+                  ${Math.round(truck.speed)} km/h
+                </div>
+              </div>`,
+            iconSize: [36, 40],
+            iconAnchor: [18, 20]
+          }));
+        }
+      });
+
+      proximityWarningLines.forEach(line => map.removeLayer(line));
+      proximityWarningLines = [];
+
+      for (let i = 0; i < fleet.length; i++) {
+        for (let j = i + 1; j < fleet.length; j++) {
+          const t1 = fleet[i];
+          const t2 = fleet[j];
+          const dist = calculateDistanceMeters(t1.lat, t1.lng, t2.lat, t2.lng);
+
+          if (dist < 55) {
+            const lineColor = dist < 30 ? '#ef4444' : '#f59e0b';
+            const line = L.polyline([
+              [t1.lat, t1.lng],
+              [t2.lat, t2.lng]
+            ], {
+              color: lineColor,
+              weight: dist < 30 ? 3.5 : 2,
+              dashArray: '6, 6',
+              opacity: 0.95
+            }).addTo(map);
+
+            proximityWarningLines.push(line);
+          }
+        }
+      }
+    }
+
+    function resetMapView() {
+      if (map) map.setView(MINE_CENTER, 15);
+    }
+
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return Math.round(R * c);
+    }
+
+    function interpolatePath(index) {
+      const totalPoints = HAUL_ROAD_PATH.length;
+      const clampedIndex = index % (totalPoints - 1);
+      const baseIndex = Math.floor(clampedIndex);
+      const fraction = clampedIndex - baseIndex;
+      const nextIndex = (baseIndex + 1) % totalPoints;
+
+      const p1 = HAUL_ROAD_PATH[baseIndex];
+      const p2 = HAUL_ROAD_PATH[nextIndex];
+
+      return {
+        lat: p1[0] + (p2[0] - p1[0]) * fraction,
+        lng: p1[1] + (p2[1] - p1[1]) * fraction,
+        segmentIndex: baseIndex
+      };
+    }
+
+    // --- THREE.JS 3D DIGITAL TWIN WITH FLOATING 3D NUMBER LABELS ---
+    let threeScene, threeCamera, threeRenderer;
+    let threeTruckModels = {};
+    let threeFollowMode = false;
+    let active3DTargetTruckId = null;
+
+    // Helper to create 3D Billboard text sprite for truck numbers
+    function createTextSprite(text, color = '#ffffff', bgColor = '#0f172a') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d');
+      
+      // Rounded rect background
+      ctx.fillStyle = bgColor;
+      ctx.beginPath();
+      ctx.roundRect(10, 10, 236, 80, 16);
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#f97316';
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = color;
+      ctx.font = 'bold 36px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 50);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(16, 6.25, 1);
+      return { sprite, canvas, ctx, texture };
+    }
+
+    function initThreeJS() {
+      const container = document.getElementById('threejs-container');
+      if (!container) return;
+
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 600;
+
+      threeScene = new THREE.Scene();
+      threeScene.background = new THREE.Color(0x050911);
+      threeScene.fog = new THREE.FogExp2(0x1a2638, 0.015);
+
+      threeCamera = new THREE.PerspectiveCamera(50, width / height, 1, 1000);
+      threeCamera.position.set(0, 120, 160);
+      threeCamera.lookAt(0, 0, 0);
+
+      threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      threeRenderer.setSize(width, height);
+      threeRenderer.setPixelRatio(window.devicePixelRatio);
+      threeRenderer.shadowMap.enabled = true;
+      container.appendChild(threeRenderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0x405070, 1.2);
+      threeScene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffecd0, 1.5);
+      dirLight.position.set(100, 200, 100);
+      dirLight.castShadow = true;
+      threeScene.add(dirLight);
+
+      // Pit Terrain
+      const terrainGeo = new THREE.PlaneGeometry(350, 350, 40, 40);
+      terrainGeo.rotateX(-Math.PI / 2);
+      const pos = terrainGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vz = pos.getZ(i);
+        const dist = Math.sqrt(vx * vx + vz * vz);
+        let height = Math.sin(vx * 0.05) * 12 + Math.cos(vz * 0.05) * 12;
+        height += Math.floor(dist / 25) * 6;
+        pos.setY(i, height);
+      }
+      terrainGeo.computeVertexNormals();
+
+      const terrainMat = new THREE.MeshStandardMaterial({ color: 0x2b1d18, roughness: 0.9 });
+      const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+      terrain.receiveShadow = true;
+      threeScene.add(terrain);
+
+      // Road Ribbon
+      const roadCurvePoints = [];
+      for (let i = 0; i < HAUL_ROAD_PATH.length; i++) {
+        const x = (HAUL_ROAD_PATH[i][1] - 81.2420) * 15000;
+        const z = (HAUL_ROAD_PATH[i][0] - 18.6850) * 15000;
+        roadCurvePoints.push(new THREE.Vector3(x, 8, z));
+      }
+      const roadCurve = new THREE.CatmullRomCurve3(roadCurvePoints, true);
+      const roadGeo = new THREE.TubeGeometry(roadCurve, 64, 4.5, 8, true);
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6, wireframe: true });
+      const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+      threeScene.add(roadMesh);
+
+      // Create 3D Dumper models dynamically
+      syncThreeTrucks();
+
+      let isDragging = false;
+      let prevMousePos = { x: 0, y: 0 };
+
+      container.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      });
+
+      window.addEventListener('mouseup', () => isDragging = false);
+
+      container.addEventListener('mousemove', (e) => {
+        if (!isDragging || threeFollowMode) return;
+        const deltaX = e.clientX - prevMousePos.x;
+        const deltaY = e.clientY - prevMousePos.y;
+
+        threeCamera.position.x += deltaX * 0.5;
+        threeCamera.position.y -= deltaY * 0.5;
+        threeCamera.lookAt(0, 0, 0);
+
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      });
+
+      container.addEventListener('wheel', (e) => {
+        threeCamera.position.z += e.deltaY * 0.1;
+        threeCamera.position.z = Math.max(40, Math.min(300, threeCamera.position.z));
+      });
+
+      window.addEventListener('resize', onThreeWindowResize);
+      render3DTruckLegend();
+    }
+
+    function syncThreeTrucks() {
+      if (!threeScene) return;
+
+      // Add missing 3D models
+      fleet.forEach(truck => {
+        if (!threeTruckModels[truck.id]) {
+          const truckGroup = new THREE.Group();
+
+          const bodyGeo = new THREE.BoxGeometry(8, 4.5, 12);
+          const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+          const body = new THREE.Mesh(bodyGeo, bodyMat);
+          body.position.y = 3.5;
+          body.castShadow = true;
+          truckGroup.add(body);
+
+          const cabGeo = new THREE.BoxGeometry(4, 3, 4);
+          const cabMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+          const cab = new THREE.Mesh(cabGeo, cabMat);
+          cab.position.set(-1.8, 6, 3.5);
+          truckGroup.add(cab);
+
+          // 3D Billboard Number Sprite (e.g., "D-101 | 26km/h")
+          const textSpriteObj = createTextSprite(`${truck.id}`, '#ffffff', '#0f172a');
+          textSpriteObj.sprite.position.set(0, 14, 0);
+          truckGroup.add(textSpriteObj.sprite);
+
+          const radarConeGeo = new THREE.ConeGeometry(8, 18, 16, 1, true);
+          radarConeGeo.rotateX(Math.PI / 2);
+          const radarConeMat = new THREE.MeshBasicMaterial({
+            color: 0x10b981,
+            transparent: true,
+            opacity: 0.2,
+            wireframe: true
+          });
+          const radarCone = new THREE.Mesh(radarConeGeo, radarConeMat);
+          radarCone.position.set(0, 3, 10);
+          truckGroup.add(radarCone);
+
+          const bubbleGeo = new THREE.SphereGeometry(15, 16, 12);
+          const bubbleMat = new THREE.MeshBasicMaterial({
+            color: 0x10b981,
+            transparent: true,
+            opacity: 0.1,
+            wireframe: true
+          });
+          const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
+          bubble.position.y = 3;
+          truckGroup.add(bubble);
+
+          threeScene.add(truckGroup);
+          threeTruckModels[truck.id] = { group: truckGroup, radarCone, bubble, textSpriteObj };
+        }
+      });
+    }
+
+    function render3DTruckLegend() {
+      const legendEl = document.getElementById('three-truck-legend');
+      if (!legendEl) return;
+      legendEl.innerHTML = '';
+
+      if (fleet.length === 0) {
+        legendEl.innerHTML = `<span class="col-span-2 text-slate-500 text-[10px] italic">No active trucks in 3D</span>`;
+        return;
+      }
+
+      fleet.forEach(truck => {
+        const btn = document.createElement('button');
+        btn.className = `px-2 py-1 rounded text-[10px] font-mono font-bold flex items-center justify-between border transition ${
+          truck.id === selectedTruckId ? 'bg-orange-600 border-orange-400 text-white' : 'bg-mine-850 border-slate-700 text-slate-300 hover:bg-mine-750'
+        }`;
+        btn.innerHTML = `
+          <span>${truck.id}</span>
+          <span class="${truck.status === 'DANGER' ? 'text-rose-400 animate-ping' : (truck.status === 'CAUTION' ? 'text-amber-400' : 'text-emerald-400')}">
+            ${Math.round(truck.speed)}k
+          </span>
+        `;
+        btn.onclick = () => focus3DTruck(truck.id);
+        legendEl.appendChild(btn);
+      });
+    }
+
+    function focus3DTruck(truckId) {
+      selectTruck(truckId);
+      active3DTargetTruckId = truckId;
+      threeFollowMode = true;
+      const model = threeTruckModels[truckId];
+      if (model) {
+        const pos = model.group.position;
+        threeCamera.position.set(pos.x, pos.y + 30, pos.z - 50);
+        threeCamera.lookAt(pos.x, pos.y + 5, pos.z + 20);
+      }
+      render3DTruckLegend();
+    }
+
+    function onThreeWindowResize() {
+      const container = document.getElementById('threejs-container');
+      if (!container || !threeRenderer) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      threeCamera.aspect = width / height;
+      threeCamera.updateProjectionMatrix();
+      threeRenderer.setSize(width, height);
+    }
+
+    function update3DFogDensity(val) {
+      document.getElementById('label-fog-density').textContent = `${val}%`;
+      if (threeScene && threeScene.fog) {
+        threeScene.fog.density = 0.005 + (val / 100) * 0.025;
+      }
+    }
+
+    function toggle3DCamera() {
+      threeFollowMode = !threeFollowMode;
+      logEvent('SYSTEM', `3D View Mode: ${threeFollowMode ? `Following Dumper ${selectedTruckId}` : 'Free Orbit Camera'}`);
+    }
+
+    function reset3DView() {
+      threeFollowMode = false;
+      threeCamera.position.set(0, 120, 160);
+      threeCamera.lookAt(0, 0, 0);
+    }
+
+    function updateThreeJSScene() {
+      if (!threeScene) return;
+
+      syncThreeTrucks();
+
+      fleet.forEach(truck => {
+        const model = threeTruckModels[truck.id];
+        if (model) {
+          const x = (truck.lng - 81.2420) * 15000;
+          const z = (truck.lat - 18.6850) * 15000;
+          model.group.position.set(x, 8, z);
+
+          // Update dynamic 3D floating tag text with live speed & ID
+          const ctx = model.textSpriteObj.ctx;
+          ctx.clearRect(0, 0, 256, 100);
+          ctx.fillStyle = truck.status === 'DANGER' ? '#7f1d1d' : (truck.status === 'CAUTION' ? '#78350f' : '#0f172a');
+          ctx.beginPath();
+          ctx.roundRect(10, 10, 236, 80, 16);
+          ctx.fill();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = truck.status === 'DANGER' ? '#ef4444' : (truck.status === 'CAUTION' ? '#f59e0b' : '#10b981');
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 32px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${truck.id} ${Math.round(truck.speed)}km/h`, 128, 50);
+          model.textSpriteObj.texture.needsUpdate = true;
+
+          if (truck.status === 'DANGER') {
+            model.bubble.material.color.setHex(0xef4444);
+            model.radarCone.material.color.setHex(0xef4444);
+            model.bubble.material.opacity = 0.35;
+          } else if (truck.status === 'CAUTION') {
+            model.bubble.material.color.setHex(0xf59e0b);
+            model.radarCone.material.color.setHex(0xf59e0b);
+            model.bubble.material.opacity = 0.2;
+          } else {
+            model.bubble.material.color.setHex(0x10b981);
+            model.radarCone.material.color.setHex(0x10b981);
+            model.bubble.material.opacity = 0.08;
+          }
+        }
+      });
+
+      if (threeFollowMode && selectedTruckId && threeTruckModels[selectedTruckId]) {
+        const targetPos = threeTruckModels[selectedTruckId].group.position;
+        threeCamera.position.set(targetPos.x, targetPos.y + 25, targetPos.z - 40);
+        threeCamera.lookAt(targetPos.x, targetPos.y + 5, targetPos.z + 20);
+      }
+
+      threeRenderer.render(threeScene, threeCamera);
+    }
+
+    // --- CHART.JS INITIALIZATIONS ---
+    function initCharts() {
+      const ctxRf = document.getElementById('chart-rf-spectrum')?.getContext('2d');
+      if (ctxRf) {
+        new Chart(ctxRf, {
+          type: 'line',
+          data: {
+            labels: ['433.10', '433.12', '433.15', '433.175 (Ch0)', '433.20', '433.22', '433.25'],
+            datasets: [{
+              label: 'Power Spectral Density (dBm)',
+              data: [-95, -92, -75, -42, -78, -90, -96],
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.2)',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { grid: { color: '#1a2942' }, ticks: { color: '#94a3b8' } },
+              x: { grid: { color: '#1a2942' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+
+      const ctxSpeed = document.getElementById('chart-speed-elevation')?.getContext('2d');
+      if (ctxSpeed) {
+        new Chart(ctxSpeed, {
+          type: 'line',
+          data: {
+            labels: ['Bench 5', 'Ridge A', 'Fog Crest', 'Switchback', 'Descent', 'Crusher', 'Return', 'Ascent'],
+            datasets: [
+              {
+                label: 'Dumper Speed (km/h)',
+                data: [18, 22, 25, 16, 34, 12, 36, 20],
+                borderColor: '#10b981',
+                yAxisID: 'y',
+                tension: 0.3
+              },
+              {
+                label: 'Haul Elevation (m MSL)',
+                data: [1240, 1228, 1214, 1195, 1160, 1120, 1145, 1190],
+                borderColor: '#f97316',
+                yAxisID: 'y1',
+                tension: 0.3,
+                borderDash: [4, 4]
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { type: 'linear', position: 'left', grid: { color: '#1a2942' }, ticks: { color: '#10b981' } },
+              y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#f97316' } },
+              x: { grid: { color: '#1a2942' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+
+      const ctxProd = document.getElementById('chart-productivity')?.getContext('2d');
+      if (ctxProd) {
+        new Chart(ctxProd, {
+          type: 'bar',
+          data: {
+            labels: ['Dense Fog Morning', 'Heavy Monsoon Afternoon', 'Night Shift (Zero-Vis)', 'Clear Day Baseline'],
+            datasets: [
+              {
+                label: 'Without V2V (Fog Stoppages)',
+                data: [18, 14, 10, 48],
+                backgroundColor: '#ef4444'
+              },
+              {
+                label: 'With Autonomous V2V/V2I (Continuity)',
+                data: [44, 42, 40, 50],
+                backgroundColor: '#10b981'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { grid: { color: '#1a2942' }, ticks: { color: '#94a3b8' } },
+              x: { grid: { color: '#1a2942' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+    }
+
+    // --- FLEET TABLE & TELEMETRY RENDERING (PERSISTENT DOM FOR 100% CLICKABLE ROWS) ---
+    function initFleetTable() {
+      const tbody = document.getElementById('fleet-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+
+      if (fleet.length === 0) {
+        const emptyTr = document.createElement('tr');
+        emptyTr.innerHTML = `
+          <td colspan="9" class="py-8 text-center text-slate-500 font-mono text-xs">
+            📡 No active HEMM dumpers currently reporting. Listening on SX1278 433MHz LoRa mesh...
+          </td>`;
+        tbody.appendChild(emptyTr);
+        return;
+      }
+
+      fleet.forEach(truck => {
+        const tr = document.createElement('tr');
+        tr.id = `fleet-row-${truck.id}`;
+        tr.className = `cursor-pointer transition border-b border-mine-800/80 hover:bg-mine-750 select-none ${
+          truck.id === selectedTruckId ? 'bg-mine-750/95 border-l-4 border-orange-500 shadow-lg' : ''
+        }`;
+        
+        // Full row click selection & inspection
+        tr.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectTruck(truck.id);
+          openTruckDetailModal(truck.id);
+        });
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 cell-dumper">
+            <div class="font-bold text-white flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full status-dot bg-emerald-400"></span>
+              <span class="dumper-id">${truck.id}</span>
+            </div>
+            <div class="text-[10px] text-purple-300 font-sans driver-name">${truck.driverName}</div>
+          </td>
+          <td class="py-2.5 px-3 text-slate-300 text-[11px] cell-gps">${truck.lat.toFixed(5)}, ${truck.lng.toFixed(5)}</td>
+          <td class="py-2.5 px-3 cell-speed">
+            <span class="text-white font-bold text-sm speed-val">${Math.round(truck.speed)}</span> <span class="text-slate-400 text-[10px]">km/h</span>
+            <div class="text-[9px] accel-tag text-slate-500">■ Steady</div>
+          </td>
+          <td class="py-2.5 px-3 text-cyan-300 font-bold cell-nearest">${truck.nearestTruck}</td>
+          <td class="py-2.5 px-3 cell-prox">
+            <span class="font-bold text-sm prox-val text-emerald-400">${truck.distanceToNearest} m</span>
+          </td>
+          <td class="py-2.5 px-3 cell-imu text-slate-300">${truck.imu.status}</td>
+          <td class="py-2.5 px-3 text-slate-400 text-[11px] cell-lora">${truck.rssi} dBm / ${truck.snr}dB</td>
+          <td class="py-2.5 px-3 text-center cell-alert">
+            <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-bold alert-badge">${dict.legendSafe}</span>
+          </td>
+          <td class="py-2.5 px-3 text-right cell-action">
+            <button class="inspect-btn px-2.5 py-1 bg-orange-600 hover:bg-orange-500 active:scale-95 rounded text-[10px] text-white font-bold transition shadow-sm">
+              ${dict.colAction}
+            </button>
+          </td>
+        `;
+
+        const btn = tr.querySelector('.inspect-btn');
+        if (btn) {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectTruck(truck.id);
+            openTruckDetailModal(truck.id);
+          });
+        }
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // In-place updates to table cells without destroying DOM or event listeners
+    function updateFleetTableDOM() {
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+
+      fleet.forEach(truck => {
+        const tr = document.getElementById(`fleet-row-${truck.id}`);
+        if (!tr) return;
+
+        const isSelected = truck.id === selectedTruckId;
+        tr.className = `cursor-pointer transition border-b border-mine-800/80 select-none ${
+          isSelected ? 'bg-mine-750/95 border-l-4 border-orange-500 shadow-lg' : 'hover:bg-mine-800'
+        }`;
+
+        // GPS
+        const gpsCell = tr.querySelector('.cell-gps');
+        if (gpsCell) gpsCell.textContent = `${truck.lat.toFixed(5)}, ${truck.lng.toFixed(5)}`;
+
+        // Speed & Accel
+        const speedVal = tr.querySelector('.speed-val');
+        if (speedVal) speedVal.textContent = Math.round(truck.speed);
+        
+        const accelTag = tr.querySelector('.accel-tag');
+        if (accelTag) {
+          accelTag.textContent = truck.accelRate > 0.8 ? '▲ Accel' : (truck.accelRate < -0.8 ? '▼ Braking' : '■ Steady');
+          accelTag.className = `text-[9px] ${truck.accelRate > 0.8 ? 'text-emerald-400' : (truck.accelRate < -0.8 ? 'text-amber-400' : 'text-slate-500')}`;
+        }
+
+        // Nearest & Proximity
+        const nearestCell = tr.querySelector('.cell-nearest');
+        if (nearestCell) nearestCell.textContent = truck.nearestTruck;
+
+        const proxVal = tr.querySelector('.prox-val');
+        if (proxVal) {
+          proxVal.textContent = `${truck.distanceToNearest} m`;
+          proxVal.className = `font-bold text-sm ${truck.distanceToNearest < 30 ? 'text-rose-400 animate-pulse' : (truck.distanceToNearest < 50 ? 'text-amber-400' : 'text-emerald-400')}`;
+        }
+
+        // IMU
+        const imuCell = tr.querySelector('.cell-imu');
+        if (imuCell) {
+          imuCell.textContent = truck.imu.status;
+          imuCell.className = `py-2.5 px-3 cell-imu ${truck.imu.status.includes('Braking') || truck.imu.status.includes('Slip') ? 'text-rose-400 font-bold' : 'text-slate-300'}`;
+        }
+
+        // LoRa
+        const loraCell = tr.querySelector('.cell-lora');
+        if (loraCell) loraCell.textContent = `${truck.rssi} dBm / ${truck.snr}dB`;
+
+        // Alert badge & Status Dot
+        const statusDot = tr.querySelector('.status-dot');
+        const alertBadge = tr.querySelector('.alert-badge');
+
+        if (truck.status === 'SAFE') {
+          if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full status-dot bg-emerald-400';
+          if (alertBadge) {
+            alertBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-bold alert-badge';
+            alertBadge.textContent = dict.legendSafe;
+          }
+        } else if (truck.status === 'CAUTION') {
+          if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full status-dot bg-amber-400';
+          if (alertBadge) {
+            alertBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-600/80 font-bold animate-pulse alert-badge';
+            alertBadge.textContent = dict.legendCaution;
+          }
+        } else {
+          if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full status-dot bg-rose-500 animate-ping';
+          if (alertBadge) {
+            alertBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-600 font-black animate-ping alert-badge';
+            alertBadge.textContent = dict.legendDanger;
+          }
+        }
+      });
+    }
+
+    function renderFleetTable() {
+      initFleetTable();
+      updateFleetTableDOM();
+    }
+
+    // MULTILINGUAL TERMINAL EVENT STREAM LOGGER
+    function logEvent(type, messageKeyOrText, truckId = '') {
+      const logContainer = document.getElementById('event-log-container');
+      if (!logContainer) return;
+      const timeString = new Date().toTimeString().split(' ')[0];
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+      
+      let badgeStyle = 'bg-cyan-950 text-cyan-400 border-cyan-800';
+      if (type === 'WARN') badgeStyle = 'bg-amber-950 text-amber-300 border-amber-700';
+      else if (type === 'CRITICAL') badgeStyle = 'bg-rose-950 text-rose-300 border-rose-600';
+      else if (type === 'IMU') badgeStyle = 'bg-purple-950 text-purple-300 border-purple-700';
+      else if (type === 'LANGUAGE') badgeStyle = 'bg-purple-950 text-purple-300 border-purple-600';
+
+      let localizedMsg = dict[messageKeyOrText] || messageKeyOrText;
+
+      const entry = document.createElement('div');
+      entry.className = 'flex items-start gap-2 border-b border-mine-850 pb-1';
+      entry.innerHTML = `
+        <span class="text-slate-500 select-none text-[10px]">${timeString}</span>
+        <span class="px-1.5 py-0.2 rounded text-[9px] border uppercase font-bold ${badgeStyle}">${type}</span>
+        <span class="text-slate-200 flex-1">${truckId ? `<strong>[${truckId}]</strong> ` : ''}${localizedMsg}</span>
+      `;
+
+      logContainer.prepend(entry);
+      if (logContainer.children.length > 60) logContainer.removeChild(logContainer.lastChild);
+
+      eventLogHistory.push({ time: timeString, type, truckId, message: localizedMsg });
+    }
+
+    function clearEventLog() {
+      const el = document.getElementById('event-log-container');
+      if (el) el.innerHTML = '';
+      logEvent('SYSTEM', 'LoRa telemetry event stream cleared by operator');
+    }
+
+    function exportLogsCSV() {
+      let csv = 'Timestamp,Severity,TruckID,EventMessage\n';
+      eventLogHistory.forEach(item => {
+        csv += `"${item.time}","${item.type}","${item.truckId}","${item.message.replace(/"/g, '""')}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NMDC_Bailadila_Safety_Log_${Date.now()}.csv`;
+      a.click();
+    }
+
+    // SELECT AND INSPECT ACTIVE TRUCK
+    function selectTruck(id) {
+      selectedTruckId = id;
+      const truck = fleet.find(t => t.id === id);
+      
+      if (truck && map) {
+        map.panTo([truck.lat, truck.lng]);
+        const marker = mapMarkers[truck.id];
+        if (marker) {
+          marker.openPopup();
+        }
+      }
+
+      updateInspector();
+      updateFleetTableDOM();
+      render3DTruckLegend();
+    }
+
+    // INTERACTIVE DETAILED TRUCK INSPECTION MODAL (FULL TELEMETRY DATA POPUP)
+    function openTruckDetailModal(truckId) {
+      const truck = fleet.find(t => t.id === truckId);
+      if (!truck) return;
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+
+      let modal = document.getElementById('truck-detail-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'truck-detail-modal';
+        modal.className = 'fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4';
+        document.body.appendChild(modal);
+      }
+
+      modal.innerHTML = `
+        <div class="bg-mine-900 border-2 border-orange-500/80 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 font-mono relative animate-in fade-in zoom-in-95 duration-200">
+          <div class="flex items-center justify-between border-b border-mine-750 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black text-sm shadow-lg">
+                ${truck.id}
+              </div>
+              <div>
+                <h3 class="font-bold text-base text-white">${truck.name}</h3>
+                <p class="text-xs text-purple-300">Driver: ${truck.driverName} • ${truck.capacity}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-3 py-1 rounded-full text-xs font-bold ${
+                truck.status === 'SAFE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-600' : (truck.status === 'CAUTION' ? 'bg-amber-950 text-amber-300 border border-amber-600' : 'bg-rose-950 text-rose-300 border border-rose-600 animate-pulse')
+              }">${truck.status}</span>
+              <button onclick="closeTruckDetailModal()" class="w-8 h-8 rounded-lg bg-mine-800 hover:bg-mine-700 text-slate-300 flex items-center justify-center transition border border-mine-700">
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- Full Live Telemetry Matrix Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">CURRENT SPEED</div>
+              <div class="text-lg font-black text-white mt-0.5">${Math.round(truck.speed)} km/h</div>
+              <div class="text-[10px] text-emerald-400 mt-0.5">Target: ${truck.targetSpeed} km/h</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">NEAREST VEHICLE</div>
+              <div class="text-lg font-black text-cyan-400 mt-0.5">${truck.nearestTruck}</div>
+              <div class="text-[10px] text-amber-400 mt-0.5">Distance: ${truck.distanceToNearest}m</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">TIME TO COLLISION (TTC)</div>
+              <div class="text-lg font-black ${truck.ttc < 10 ? 'text-rose-400' : 'text-emerald-400'} mt-0.5">
+                ${truck.ttc > 50 ? 'INF (Safe)' : truck.ttc + 's'}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">V2V Mesh Delta-V</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">GPS COORDINATES</div>
+              <div class="text-xs font-bold text-white mt-1">${truck.lat.toFixed(6)} N</div>
+              <div class="text-xs font-bold text-white">${truck.lng.toFixed(6)} E</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">6-DOF IMU (MPU-6050)</div>
+              <div class="text-xs font-bold text-white mt-1">Pitch: ${truck.imu.pitch.toFixed(1)}° | Roll: ${truck.imu.roll.toFixed(1)}°</div>
+              <div class="text-[10px] text-emerald-400 mt-0.5">G-Force: ${truck.imu.gforce}G (${truck.imu.status})</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">24GHz RADAR (CDM324)</div>
+              <div class="text-xs font-bold ${truck.distanceToNearest < 30 ? 'text-rose-400' : 'text-emerald-400'} mt-1">
+                ${truck.distanceToNearest < 30 ? 'OBSTACLE DETECTED' : 'CLEAR PATH'}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Range: 30m Micro-Doppler</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">LORA SX1278 (433MHz)</div>
+              <div class="text-xs font-bold text-cyan-400 mt-1">RSSI: ${truck.rssi} dBm</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">SNR: ${truck.snr} dB • Mesh Hop: 1</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">ESP32 CONTROLLER</div>
+              <div class="text-xs font-bold text-emerald-400 mt-1">Dual-Core 240MHz</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Battery: 24.4V (Healthy)</div>
+            </div>
+
+            <div class="bg-mine-850 p-3 rounded-xl border border-mine-750">
+              <div class="text-slate-400 text-[10px]">NEO-6M GPS SATELLITES</div>
+              <div class="text-xs font-bold text-emerald-400 mt-1">12 Satellites</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">3D Fix • HDOP 0.8</div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Buttons -->
+          <div class="flex items-center justify-between border-t border-mine-750 pt-3 text-xs">
+            <button onclick="speakAlertKey('voiceTest', '${truck.language}');" class="px-3 py-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-200 rounded-lg border border-purple-600 transition flex items-center gap-1.5">
+              <i data-lucide="volume-2" class="w-4 h-4"></i> Voice Test in Driver Dialect
+            </button>
+            <div class="flex items-center gap-2">
+              <button onclick="switchTab('driver-cockpit'); filterCockpitView('${truck.id}'); closeTruckDetailModal();" class="px-3 py-1.5 bg-cyan-900/80 hover:bg-cyan-800 text-cyan-200 rounded-lg border border-cyan-600 transition">
+                Open In-Cabin OLED HUD
+              </button>
+              <button onclick="closeTruckDetailModal()" class="px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-lg transition shadow-md">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeTruckDetailModal() {
+      const modal = document.getElementById('truck-detail-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function updateInspector() {
+      const truck = fleet.find(t => t.id === selectedTruckId);
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+
+      const title = document.getElementById('inspector-title');
+      const badge = document.getElementById('inspector-status-badge');
+      const radarBlip = document.getElementById('radar-blip');
+      const radarReadout = document.getElementById('radar-readout');
+      const imuPitch = document.getElementById('imu-pitch');
+      const imuRoll = document.getElementById('imu-roll');
+      const imuGforce = document.getElementById('imu-gforce');
+      const gforceBar = document.getElementById('imu-gforce-bar');
+      const imuBrake = document.getElementById('imu-brake-alert');
+
+      if (!truck) {
+        if (title) title.textContent = 'Vehicle Telemetry HUD (Standby)';
+        if (badge) {
+          badge.textContent = 'STANDBY';
+          badge.className = 'px-2.5 py-0.5 text-[10px] font-mono rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-bold';
+        }
+        if (radarBlip) radarBlip.classList.add('hidden');
+        if (radarReadout) radarReadout.textContent = dict.radarClear;
+        return;
+      }
+
+      if (title) title.textContent = `Vehicle Telemetry HUD: ${truck.id} (${truck.driverName})`;
+      
+      if (badge) {
+        badge.textContent = truck.status === 'SAFE' ? dict.legendSafe : (truck.status === 'CAUTION' ? dict.legendCaution : dict.legendDanger);
+        if (truck.status === 'SAFE') {
+          badge.className = 'px-2.5 py-0.5 text-[10px] font-mono rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/60 font-bold';
+        } else if (truck.status === 'CAUTION') {
+          badge.className = 'px-2.5 py-0.5 text-[10px] font-mono rounded-full bg-amber-950 text-amber-300 border border-amber-600/80 font-bold';
+        } else {
+          badge.className = 'px-2.5 py-0.5 text-[10px] font-mono rounded-full bg-rose-950 text-rose-300 border border-rose-600 font-black animate-pulse';
+        }
+      }
+
+      // 24GHz Radar Gauges
+      if (radarBlip && radarReadout) {
+        if (truck.distanceToNearest < 30) {
+          radarBlip.classList.remove('hidden');
+          radarReadout.innerHTML = `<span class="text-rose-400 font-bold">Obstacle in ${truck.distanceToNearest}m!</span>`;
+        } else if (truck.distanceToNearest < 50) {
+          radarBlip.classList.remove('hidden');
+          radarReadout.innerHTML = `<span class="text-amber-400 font-bold">Target at ${truck.distanceToNearest}m</span>`;
+        } else {
+          radarBlip.classList.add('hidden');
+          radarReadout.textContent = dict.radarClear;
+        }
+      }
+
+      // IMU Readouts
+      if (imuPitch) imuPitch.textContent = `${truck.imu.pitch > 0 ? '+' : ''}${truck.imu.pitch.toFixed(1)}°`;
+      if (imuRoll) imuRoll.textContent = `${truck.imu.roll > 0 ? '+' : ''}${truck.imu.roll.toFixed(1)}°`;
+      if (imuGforce) imuGforce.textContent = `${truck.imu.gforce.toFixed(2)} G (${truck.imu.status})`;
+      
+      if (gforceBar) {
+        const gforcePercent = Math.min(100, Math.max(10, truck.imu.gforce * 40));
+        gforceBar.style.width = `${gforcePercent}%`;
+        gforceBar.className = truck.imu.gforce > 1.25 ? 'bg-rose-500 h-1 rounded-full' : 'bg-emerald-500 h-1 rounded-full';
+      }
+
+      if (imuBrake) {
+        if (truck.imu.gforce > 1.25) {
+          imuBrake.textContent = 'SUDDEN DECEL / SLIP';
+          imuBrake.className = 'text-rose-400 font-bold';
+        } else {
+          imuBrake.textContent = 'Normal';
+          imuBrake.className = 'text-emerald-400 font-bold';
+        }
+      }
+    }
+
+    // --- RENDER ACTIVE FLEET TRUCKS IN CABIN HUD TAB ---
+    function renderAllCockpits() {
+      const container = document.getElementById('all-cockpits-grid');
+      const filterBar = document.getElementById('cockpit-filter-buttons');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (filterBar) {
+        filterBar.innerHTML = `
+          <span class="text-xs text-slate-400 px-2 font-mono" data-i18n="selectTruckView">Select Truck View:</span>
+          <button onclick="filterCockpitView('ALL')" id="btn-cockpit-filter-ALL" class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${activeCockpitFilter === 'ALL' ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-mine-800'} transition">ALL (${fleet.length})</button>
+        `;
+        fleet.forEach(truck => {
+          const btn = document.createElement('button');
+          btn.id = `btn-cockpit-filter-${truck.id}`;
+          btn.onclick = () => filterCockpitView(truck.id);
+          btn.className = `px-2.5 py-1 rounded-lg text-xs font-mono transition ${activeCockpitFilter === truck.id ? 'bg-orange-600 font-bold text-white' : 'text-slate-300 hover:bg-mine-800'}`;
+          btn.textContent = truck.id;
+          filterBar.appendChild(btn);
+        });
+      }
+
+      const dict = UI_TRANSLATIONS[selectedGlobalLang] || UI_TRANSLATIONS['hi-IN'];
+      const timeStr = new Date().toTimeString().split(' ')[0];
+
+      if (fleet.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full bg-mine-850 border border-mine-750 rounded-2xl p-12 text-center text-slate-500 font-mono text-sm">
+            📡 No in-cabin HUD telemetry feeds active. Connect SX1278 truck nodes to begin monitoring.
+          </div>`;
+        return;
+      }
+
+      const visibleFleet = activeCockpitFilter === 'ALL' 
+        ? fleet 
+        : fleet.filter(t => t.id === activeCockpitFilter);
+
+      visibleFleet.forEach(truck => {
+        const card = document.createElement('div');
+        card.className = `bg-mine-850 border border-mine-750 rounded-2xl overflow-hidden shadow-2xl p-4 flex flex-col gap-3 transition ${
+          truck.id === selectedTruckId ? 'ring-2 ring-orange-500' : ''
+        }`;
+
+        let oledAlertText = dict.safeOled;
+        let oledAlertBoxClass = 'bg-emerald-950 border-2 border-emerald-500 text-emerald-400';
+        let buzzerText = 'OFF';
+        let buzzerClass = 'text-emerald-400';
+
+        if (truck.distanceToNearest < 30) {
+          oledAlertText = dict.dangerOled;
+          oledAlertBoxClass = 'bg-rose-950 border-2 border-rose-500 text-rose-300 animate-pulse';
+          buzzerText = 'ACTIVE (1.2kHz)';
+          buzzerClass = 'text-rose-400 font-bold animate-ping';
+        } else if (truck.distanceToNearest < 50) {
+          oledAlertText = dict.cautionOled;
+          oledAlertBoxClass = 'bg-amber-950 border-2 border-amber-500 text-amber-300';
+          buzzerText = 'PULSE (440Hz)';
+          buzzerClass = 'text-amber-400 font-bold';
+        }
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-mine-750 pb-2 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="gauge" class="w-4 h-4 text-orange-400"></i>
+              <div>
+                <h4 class="font-bold text-xs text-white">${truck.id} (${truck.name.split('(')[0]})</h4>
+                <p class="text-[10px] text-purple-300 font-mono">${truck.driverName}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                truck.status === 'SAFE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-700' : (truck.status === 'CAUTION' ? 'bg-amber-950 text-amber-300 border border-amber-600' : 'bg-rose-950 text-rose-300 border border-rose-600 animate-pulse')
+              }">${truck.status}</span>
+              <button onclick="selectTruck('${truck.id}')" class="px-2 py-0.5 bg-mine-800 hover:bg-mine-750 text-slate-300 text-[10px] rounded border border-slate-700">Inspect</button>
+            </div>
+          </div>
+
+          <!-- 1.3" OLED Hardware Screen Simulation -->
+          <div class="bg-black border-2 border-slate-700 rounded-xl p-3 font-mono text-cyan-300 shadow-inner flex flex-col gap-1.5">
+            <div class="flex justify-between text-[10px] border-b border-cyan-950 pb-1 text-slate-400">
+              <span>NMDC V2V | ${truck.id}</span>
+              <span>${timeStr}</span>
+            </div>
+            <div class="flex items-center justify-between py-1">
+              <div>
+                <div class="text-[9px] text-slate-400 uppercase tracking-wider">RADAR PROXIMITY</div>
+                <div class="text-2xl font-black text-white tracking-wider flex items-baseline gap-1">
+                  ${truck.distanceToNearest} <span class="text-xs font-normal text-cyan-400">METERS</span>
+                </div>
+                <div class="text-[10px] text-slate-400">Ahead: <strong class="text-white">${truck.nearestTruck}</strong></div>
+              </div>
+              <div class="px-3 py-2 rounded-lg text-center ${oledAlertBoxClass}">
+                <div class="text-xs font-black uppercase">${oledAlertText}</div>
+                <div class="text-[9px] text-slate-300">FOG: 3.4m</div>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-1 border-t border-cyan-950 pt-1.5 text-[10px] text-slate-400">
+              <div>SPD: <strong class="text-white">${Math.round(truck.speed)} km/h</strong></div>
+              <div>IMU: <strong class="text-emerald-400">${truck.imu.status}</strong></div>
+              <div>BUZZ: <strong class="${buzzerClass}">${buzzerText}</strong></div>
+            </div>
+          </div>
+
+          <!-- Forward Thermal FLIR Camera View for this truck -->
+          <div class="bg-slate-950 rounded-lg p-2 border border-mine-750 relative overflow-hidden h-28 flex items-center justify-center">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-800/80 to-slate-900/90 backdrop-blur-md"></div>
+            <div class="w-full h-px bg-cyan-500/30 absolute bottom-6"></div>
+            
+            <div class="relative z-10 flex flex-col items-center transition-opacity duration-300" style="opacity: ${truck.distanceToNearest < 40 ? '1' : (truck.distanceToNearest < 70 ? '0.6' : '0.2')}">
+              <div class="w-12 h-8 bg-amber-500/40 border border-amber-400/80 rounded flex items-center justify-center text-amber-300 font-mono text-[9px] font-bold">
+                [ ${truck.nearestTruck} ]
+              </div>
+              <div class="text-[9px] font-mono text-amber-400 bg-black/80 px-1 rounded mt-0.5">
+                ${truck.distanceToNearest}m
+              </div>
+            </div>
+            <div class="absolute top-1 left-2 font-mono text-[9px] text-cyan-400 bg-black/60 px-1 rounded">
+              FLIR_CAB_${truck.id}
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function filterCockpitView(truckId) {
+      activeCockpitFilter = truckId;
+      document.querySelectorAll('[id^="btn-cockpit-filter-"]').forEach(btn => {
+        btn.className = 'px-2.5 py-1 rounded-lg text-xs font-mono text-slate-300 hover:bg-mine-800 transition';
+      });
+      const activeBtn = document.getElementById(`btn-cockpit-filter-${truckId}`);
+      if (activeBtn) {
+        activeBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-orange-600 text-white transition';
+      }
+      renderAllCockpits();
+    }
+
+    // --- REALTIME 60Hz SIMULATION TICK WITH ACCELERATION PHYSICS ---
+    let lastTick = Date.now();
+
+    function simulationTick() {
+      const now = Date.now();
+      const dt = (now - lastTick) / 1000;
+      lastTick = now;
+
+      if (simulationSpeed > 0 && fleet.length > 0) {
+        totalPacketsReceived += Math.floor(fleet.length * simulationSpeed);
+
+        // 1. Advance physics & dynamic acceleration across road segments
+        fleet.forEach((truck) => {
+          const pathInfo = interpolatePath(truck.routeIndex);
+          truck.lat = pathInfo.lat;
+          truck.lng = pathInfo.lng;
+
+          // Look up terrain profile of current haul road segment
+          const segment = SEGMENT_PHYSICS[pathInfo.segmentIndex % SEGMENT_PHYSICS.length];
+          truck.targetSpeed = segment.baseSpeed;
+          truck.imu.pitch = segment.pitch + (Math.sin(now * 0.002 + truck.routeIndex) * 0.4);
+
+          // Realistic acceleration smoothing: $v(t) = v(t-1) + a \cdot \Delta t$
+          const speedDiff = truck.targetSpeed - truck.speed;
+          truck.accelRate = parseFloat((speedDiff * 0.4).toFixed(1));
+          truck.speed += speedDiff * dt * simulationSpeed * 0.8;
+          truck.speed = Math.max(8, Math.min(42, truck.speed)); // Speed bounds
+
+          // Update motion state
+          if (truck.accelRate > 0.8) {
+            truck.imu.status = 'Accelerating';
+            truck.imu.gforce = 1.08;
+          } else if (truck.accelRate < -0.8) {
+            truck.imu.status = 'Braking / Descent';
+            truck.imu.gforce = 1.15;
+          } else {
+            truck.imu.status = segment.desc.split(' ')[0] || 'Cruising';
+            truck.imu.gforce = 1.01;
+          }
+
+          // Step along path
+          const step = (truck.speed / 3600) * dt * simulationSpeed * 4.5;
+          truck.routeIndex += step;
+          truck.packetCount += 1;
+          truck.rssi = -70 - Math.floor(Math.random() * 12);
+          truck.snr = (7.5 + (Math.random() * 2.5)).toFixed(1);
+        });
+
+        // 2. Proximity Matrix & Time-To-Collision (TTC)
+        let minGlobalTtc = 999;
+
+        for (let i = 0; i < fleet.length; i++) {
+          let minDistance = 9999;
+          let nearestId = 'None';
+
+          for (let j = 0; j < fleet.length; j++) {
+            if (i === j) continue;
+            const dist = calculateDistanceMeters(fleet[i].lat, fleet[i].lng, fleet[j].lat, fleet[j].lng);
+            if (dist < minDistance) {
+              minDistance = dist;
+              nearestId = fleet[j].id;
+            }
+          }
+
+          fleet[i].distanceToNearest = minDistance;
+          fleet[i].nearestTruck = nearestId;
+
+          const relSpeed = Math.abs(fleet[i].speed - 20) / 3.6;
+          const ttc = relSpeed > 0 ? Math.round(minDistance / relSpeed) : 99;
+          fleet[i].ttc = ttc;
+          if (ttc < minGlobalTtc) minGlobalTtc = ttc;
+
+          if (minDistance < 30) {
+            fleet[i].status = 'DANGER';
+            if (now - lastAlarmTime > 1500) {
+              playBuzzerTone(1200, 0.25, 'sawtooth');
+              lastAlarmTime = now;
+            }
+          } else if (minDistance < 50) {
+            fleet[i].status = 'CAUTION';
+          } else {
+            fleet[i].status = 'SAFE';
+          }
+        }
+
+        const ttcStat = document.getElementById('stat-min-ttc');
+        if (ttcStat) {
+          if (minGlobalTtc < 8) {
+            ttcStat.textContent = `${minGlobalTtc}s (CRITICAL)`;
+            ttcStat.className = 'text-rose-400 font-bold animate-ping';
+          } else {
+            ttcStat.textContent = `${minGlobalTtc > 50 ? 'INF' : minGlobalTtc + 's'} (Safe)`;
+            ttcStat.className = 'text-emerald-400 font-bold';
+          }
+        }
+
+        updateMapMarkers();
+        updateFleetTableDOM();
+        updateInspector();
+        updateThreeJSScene();
+      }
+
+      requestAnimationFrame(simulationTick);
+    }
+
+    // --- INTERACTIVE SCENARIOS FOR TESTING & DEMOS ---
+    function triggerScenario(name) {
+      if (fleet.length === 0) {
+        logEvent('SYSTEM', 'No active trucks connected to inject scenario.');
+        return;
+      }
+
+      if (name === 'normal') {
+        fleet[0].routeIndex = 1.0;
+        fleet[0].speed = 26;
+        fleet[0].targetSpeed = 26;
+
+        if (fleet[1]) {
+          fleet[1].routeIndex = 2.4;
+          fleet[1].speed = 24;
+          fleet[1].targetSpeed = 25;
+        }
+
+        logEvent('SYSTEM', 'voiceSafe');
+        speakAlertKey('voiceSafe', selectedGlobalLang);
+      } 
+      else if (name === 'nearCollision') {
+        fleet[0].routeIndex = 1.82;
+        fleet[0].speed = 34;
+        fleet[0].targetSpeed = 34;
+
+        if (fleet[1]) {
+          fleet[1].routeIndex = 1.88;
+          fleet[1].speed = 10;
+          fleet[1].targetSpeed = 10;
+        }
+
+        logEvent('CRITICAL', 'voiceDanger', fleet[0].id);
+        selectTruck(fleet[0].id);
+        playBuzzerTone(1200, 0.45, 'sawtooth');
+        speakAlertKey('voiceDanger', selectedGlobalLang);
+      }
+      else if (name === 'suddenBrake') {
+        const target = fleet[1] || fleet[0];
+        target.targetSpeed = 0;
+        target.speed = 3;
+        target.imu = { pitch: -1.2, roll: 4.8, gforce: 1.52, status: 'EMERGENCY BRAKE / SLIP' };
+
+        logEvent('IMU', 'voiceSlip', target.id);
+        selectTruck(target.id);
+        playBuzzerTone(900, 0.35, 'square');
+        speakAlertKey('voiceSlip', selectedGlobalLang);
+      }
+      else if (name === 'denseFogShift') {
+        document.getElementById('stat-visibility').textContent = '1.4 m';
+        document.getElementById('fog-overlay').style.opacity = '0.7';
+        update3DFogDensity(98);
+        
+        logEvent('WEATHER', 'voiceDenseFog');
+        speakAlertKey('voiceDenseFog', selectedGlobalLang);
+      }
+    }
+
+    function injectCustomPacket() {
+      logEvent('LORA', 'Received Test Mesh Packet: RSSI -62dBm, SNR 10.4dB, Lat 18.6865, Lng 81.2428, Spd 24km/h', 'TEST-NODE');
+      playBuzzerTone(600, 0.1, 'sine');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initMap();
+      initThreeJS();
+      initCharts();
+      updateAllDashboardLanguage(selectedGlobalLang);
+      
+      logEvent('SYSTEM', 'Bailadila Control Server Online. LoRa Gateway connected on USB-COM4 (433MHz).');
+      logEvent('SYSTEM', 'Multilingual UI & Voice Dispatch Active (Hindi, Telugu, Kannada, Odia, Chhattisgarhi, Bengali, English).');
+      
+      requestAnimationFrame(simulationTick);
+    });
+  </script>
+</body>
+</html>
